@@ -1,0 +1,21 @@
+[Unit]
+Description=Telegram site traffic bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tbot
+Group=tbot
+WorkingDirectory=/opt/t-bot-sonar
+EnvironmentFile=/etc/t-bot-sonar.env
+ExecStart=/usr/bin/python3 /opt/t-bot-sonar/bot.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
