@@ -53,17 +53,18 @@ def api(method, payload):
     return result["result"]
 
 
-def button():
-    return json.dumps({"inline_keyboard": [[
-        {"text": "Открыть сайт ↗", "url": SITE_URL}
-    ]]})
+def button(include_channel=False):
+    keyboard = [[{"text": "Открыть freedom1.ru ↗", "url": SITE_URL}]]
+    if include_channel:
+        keyboard.append([{"text": "Подписаться на канал ↗", "url": "https://t.me/wifisonar"}])
+    return json.dumps({"inline_keyboard": keyboard})
 
 
 def send(chat_id, text):
     api("sendMessage", {
         "chat_id": chat_id,
         "text": text,
-        "reply_markup": button(),
+        "reply_markup": button(include_channel=True),
         "disable_web_page_preview": "true",
     })
 
@@ -185,6 +186,7 @@ def handle(message):
     command = text.split(maxsplit=1)[0].split("@", 1)[0] if text.startswith("/") else ""
     if command == "/start":
         send(chat_id, "Привет! Дважды в день я собираю популярные материалы о сетях и интернете.\n"
+                      "Подборки выходят в @wifisonar; нажми «Подписаться на канал».\n"
                       "Команда /recommend — пример «Фридом» по теме или региону.\n\n"
                       "Выпуски выходят в 08:00 и 18:00 по UTC+3.\n\n"
                       "Команды: /go — открыть сайт, /buzz — случайный повод, /help — помощь")
@@ -195,11 +197,14 @@ def handle(message):
     elif command == "/help":
         send(chat_id, "Подборки публикуются в канале дважды в день.\n"
                       "/recommend [тема или регион] — пример на сайте Фридом\n"
+                      "/subscribe — ссылка на канал с выпусками\n"
                       "/go — перейти на сайт\n/buzz — получить повод заглянуть\n"
                       "/start — начать заново")
     elif command == "/recommend":
         topic = text.partition(" ")[2]
         send(chat_id, recommend_text(topic))
+    elif command == "/subscribe":
+        send(chat_id, "Чтобы быть в курсе новых подборок, подпишитесь на @wifisonar: https://t.me/wifisonar")
     elif should_refer_user(text):
         region = matched_region(text)
         send(chat_id, recommend_text(region))
