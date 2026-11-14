@@ -281,7 +281,16 @@ def freedom_bridge(item):
     return "Технология важна и в повседневном подключении — проверьте, доступен ли интернет Фридом по вашему адресу."
 
 
-def make_digest(items, slot_label, site_url, freedom_url):
+def app_bridge(item):
+    terms = set(item.get("terms", []))
+    if terms & {"wifi", "wi-fi", "wireless", "mesh network"}:
+        return "Проверьте это на своей сети: WiFi Sonar показывает уровень сигнала, каналы и перекрытия."
+    if terms & {"dns", "tcp", "udp", "routing", "bgp", "vpn", "wireguard", "firewall", "ddos"}:
+        return "WiFi Sonar поможет проверить параметры подключения, DNS, шлюз, задержку и потери пакетов."
+    return "WiFi Sonar поможет проверить сигнал, занятость Wi‑Fi-каналов и качество подключения дома."
+
+
+def make_digest(items, slot_label, site_url, freedom_url, app_urls):
     if not items:
         return ""
     lines = [f"<b>📡 WiFiSonar · {slot_label}</b>", "<i>3 популярных материала о сетях и интернете</i>", ""]
@@ -299,6 +308,9 @@ def make_digest(items, slot_label, site_url, freedom_url):
             lines.append(f"<i>{item['source']}</i>")
         bridge = freedom_bridge(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         lines.append(f"<i>{bridge}</i> <a href=\"{freedom_url}\">Фридом ↗</a>")
+        app_note = app_bridge(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        app_url = app_urls[index - 1]
+        lines.append(f"<i>{app_note}</i> <a href=\"{app_url}\">WiFi Sonar для Android ↗</a>")
         lines.append("")
     if site_url:
         lines.append(f"<a href=\"{site_url}\">Основной сайт ↗</a>")

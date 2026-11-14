@@ -16,6 +16,7 @@ from digest import canonical_url, collect_ranked, make_digest, translate_items_t
 TOKEN = os.environ["BOT_TOKEN"]
 SITE_URL = os.environ["SITE_URL"].rstrip("/")
 FREEDOM_URL = os.getenv("FREEDOM_URL", "https://freedom1.ru/").rstrip("/")
+APP_URL = os.environ["APP_URL"]
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@wifisonar")
 API = f"https://api.telegram.org/bot{TOKEN}"
 UTC_PLUS_3 = timezone(timedelta(hours=3), "UTC+03:00")
@@ -54,9 +55,22 @@ def api(method, payload):
     return result["result"]
 
 
-def button(include_channel=False):
+def tracked_app_url(campaign, content="button"):
+    parts = urllib.parse.urlsplit(APP_URL)
+    params = dict(urllib.parse.parse_qsl(parts.query, keep_blank_values=True))
+    params.update({
+        "utm_source": "telegram",
+        "utm_medium": "bot",
+        "utm_campaign": campaign,
+        "utm_content": content,
+    })
+    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, urllib.parse.urlencode(params), parts.fragment))
+
+
+def button(include_channel=False, campaign="bot_menu"):
     keyboard = [
         [{"text": "Мой основной сайт ↗", "url": SITE_URL}],
+        [{"text": "Скачать WiFi Sonar для Android ↗", "url": tracked_app_url(campaign)}],
         [{"text": "Проверить Фридом ↗", "url": FREEDOM_URL}],
     ]
     if include_channel:
@@ -64,11 +78,11 @@ def button(include_channel=False):
     return json.dumps({"inline_keyboard": keyboard})
 
 
-def send(chat_id, text):
+def send(chat_id, text, campaign="bot_message"):
     api("sendMessage", {
         "chat_id": chat_id,
         "text": text,
-        "reply_markup": button(include_channel=True),
+        "reply_markup": button(include_channel=True, campaign=campaign),
         "disable_web_page_preview": "true",
     })
 
@@ -168,13 +182,21 @@ def maybe_publish_digest():
                 return
             items = translate_items_to_russian(items)
             label = f"{slot_name}, {slot_start.strftime('%H:%M')} · UTC+3"
-            message = make_digest(items, label, escape(SITE_URL, quote=True), escape(FREEDOM_URL, quote=True))
+            campaign = f"wifi_sonar_{slot_name}_{now.strftime('%Y%m%d')}"
+            app_urls = [tracked_app_url(campaign, f"article_{index}") for index in range(1, len(items) + 1)]
+            message = make_digest(
+                items,
+                label,
+                escape(SITE_URL, quote=True),
+                escape(FREEDOM_URL, quote=True),
+                [escape(url, quote=True) for url in app_urls],
+            )
             api("sendMessage", {
                 "chat_id": CHANNEL_ID,
                 "text": message,
                 "parse_mode": "HTML",
                 "disable_web_page_preview": "true",
-                "reply_markup": button(),
+                "reply_markup": button(campaign=campaign),
             })
             state["sent"][slot_key] = now.isoformat()
             state["recent"].extend({"url": canonical_url(item["url"]), "at": now.isoformat()} for item in items)
@@ -191,16 +213,22 @@ def handle(message):
     if command == "/start":
         send(chat_id, "Привет! Дважды в день я собираю популярные материалы о сетях и интернете.\n"
                       "Подборки выходят в @wifisonar; нажми «Подписаться на канал».\n"
+                      "Команда /app — скачать WiFi Sonar для Android.\n"
                       "Команда /recommend — пример «Фридом» по теме или региону.\n\n"
                       "Выпуски выходят в 08:00 и 18:00 по UTC+3.\n\n"
                       "Команды: /go — открыть сайт, /buzz — случайный повод, /help — помощь")
     elif command == "/go":
         send(chat_id, "Твоя точка приземления готова 🛬")
+    elif command == "/app":
+        send(chat_id, "WiFi Sonar помогает сканировать Wi‑Fi, сравнивать сигнал и каналы, проверять DNS, шлюз и задержку, а также обследовать покрытие в помещении.\n\n"
+                      "Скачайте APK для Android 8.0 и новее. Результаты сканирования зависят от устройства, версии Android и выданных разрешений.",
+             campaign="wifi_sonar_bot_app_command")
     elif command == "/buzz":
         send(chat_id, random.choice(HOOKS))
     elif command == "/help":
         send(chat_id, "Подборки публикуются в канале дважды в день.\n"
                       "/recommend [тема или регион] — пример на сайте Фридом\n"
+                      "/app — скачать WiFi Sonar для Android\n"
                       "/subscribe — ссылка на канал с выпусками\n"
                       "/go — перейти на сайт\n/buzz — получить повод заглянуть\n"
                       "/start — начать заново")
