@@ -184,7 +184,7 @@ def parse_feed(xml_bytes, source, url):
                 try:
                     published = datetime.fromisoformat(fields[date_field].replace("Z", "+00:00"))
                     break
-                except (TypeError, ValueError, OverflowError):
+                except (KeyError, TypeError, ValueError, OverflowError):
                     continue
         age_hours = 24.0
         if published:
