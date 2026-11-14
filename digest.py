@@ -269,7 +269,18 @@ def translate_items_to_russian(items):
     return result_items
 
 
-def make_digest(items, slot_label, site_url):
+def freedom_bridge(item):
+    terms = set(item.get("terms", []))
+    if terms & {"wifi", "wi-fi", "wireless", "mesh network"}:
+        return "Даже хороший Wi‑Fi зависит от линии до дома — проверьте, доступен ли интернет Фридом по вашему адресу."
+    if terms & {"fiber optic", "ethernet", "bgp", "routing", "internet exchange", "peering"}:
+        return "Практический контекст — доступность и стабильность линии до дома; проверьте покрытие Фридом по адресу."
+    if terms & {"vpn", "wireguard", "firewall", "ddos", "network security", "tls"}:
+        return "Безопасность начинается с надёжного подключения; проверьте доступность интернета Фридом по адресу."
+    return "Технология важна и в повседневном подключении — проверьте, доступен ли интернет Фридом по вашему адресу."
+
+
+def make_digest(items, slot_label, site_url, freedom_url):
     if not items:
         return ""
     lines = [f"<b>📡 WiFiSonar · {slot_label}</b>", "<i>3 популярных материала о сетях и интернете</i>", ""]
@@ -285,7 +296,9 @@ def make_digest(items, slot_label, site_url):
             lines.append(f"<i>Hacker News · {item['points']} баллов · {item['comments']} комментариев</i>")
         else:
             lines.append(f"<i>{item['source']}</i>")
+        bridge = freedom_bridge(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        lines.append(f"<i>{bridge}</i> <a href=\"{freedom_url}\">Фридом ↗</a>")
         lines.append("")
     if site_url:
-        lines.append(f"<a href=\"{site_url}\">Фридом — проверить покрытие и тарифы ↗</a>")
+        lines.append(f"<a href=\"{site_url}\">Основной сайт ↗</a>")
     return "\n".join(lines)

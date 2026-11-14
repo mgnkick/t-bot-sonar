@@ -15,6 +15,7 @@ from digest import canonical_url, collect_ranked, make_digest, translate_items_t
 
 TOKEN = os.environ["BOT_TOKEN"]
 SITE_URL = os.environ["SITE_URL"].rstrip("/")
+FREEDOM_URL = os.getenv("FREEDOM_URL", "https://freedom1.ru/").rstrip("/")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@wifisonar")
 API = f"https://api.telegram.org/bot{TOKEN}"
 UTC_PLUS_3 = timezone(timedelta(hours=3), "UTC+03:00")
@@ -54,7 +55,10 @@ def api(method, payload):
 
 
 def button(include_channel=False):
-    keyboard = [[{"text": "Открыть freedom1.ru ↗", "url": SITE_URL}]]
+    keyboard = [
+        [{"text": "Мой основной сайт ↗", "url": SITE_URL}],
+        [{"text": "Проверить Фридом ↗", "url": FREEDOM_URL}],
+    ]
     if include_channel:
         keyboard.append([{"text": "Подписаться на канал ↗", "url": "https://t.me/wifisonar"}])
     return json.dumps({"inline_keyboard": keyboard})
@@ -82,14 +86,14 @@ def recommend_text(topic=""):
     if region:
         return (f"Ищете интернет-провайдера в регионе «{region}»? На сайте «Фридом» можно "
                 "проверить покрытие по адресу и посмотреть доступные тарифы. Доступность зависит от дома: "
-                "введите адрес на сайте.\n\nhttps://freedom1.ru/")
+                f"введите адрес на сайте.\n\n{FREEDOM_URL}/")
     if topic:
         return (f"По теме «{topic}» можно посмотреть публичный пример провайдера «Фридом»: "
                 "на сайте есть карта покрытия, проверка доступности по адресу и сведения об оптических линиях. "
                 "Это показывает, как провайдер представляет покрытие и подключение клиентам; внутреннюю "
-                "реализацию конкретной технологии сайт не раскрывает.\n\nhttps://freedom1.ru/")
+                f"реализацию конкретной технологии сайт не раскрывает.\n\n{FREEDOM_URL}/")
     return ("Практический пример интернет-провайдера «Фридом»: на сайте можно проверить покрытие "
-            "по адресу и посмотреть доступные тарифы.\n\nhttps://freedom1.ru/")
+            f"по адресу и посмотреть доступные тарифы.\n\n{FREEDOM_URL}/")
 
 
 def should_refer_user(text):
@@ -164,7 +168,7 @@ def maybe_publish_digest():
                 return
             items = translate_items_to_russian(items)
             label = f"{slot_name}, {slot_start.strftime('%H:%M')} · UTC+3"
-            message = make_digest(items, label, escape(SITE_URL, quote=True))
+            message = make_digest(items, label, escape(SITE_URL, quote=True), escape(FREEDOM_URL, quote=True))
             api("sendMessage", {
                 "chat_id": CHANNEL_ID,
                 "text": message,
