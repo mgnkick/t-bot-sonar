@@ -25,12 +25,18 @@ LOBSTERS_FEEDS = (
     ("Lobsters · security", "https://lobste.rs/t/security.rss"),
 )
 KEYWORDS = (
-    "network", "networking", "internet", "wifi", "wi-fi", "wireless",
-    "router", "routing", "bgp", "dns", "tcp", "udp", "ipv4", "ipv6",
-    "ethernet", "quic", "firewall", "vpn", "wireguard", "proxy",
-    "subnet", "packet", "datacenter", "data center", "5g", "6g",
-    "mesh network", "load balancer", "ddos", "cloudflare", "fiber optic",
-    "switching", "network security", "tls", "internet exchange", "peering",
+    "networking", "computer network", "network protocol", "network infrastructure",
+    "network security", "network operator", "internet", "internet access",
+    "internet service provider", "internet outage", "wifi", "wi-fi", "wireless",
+    "wireless lan", "wlan", "router", "routers", "routing", "bgp", "dns",
+    "tcp", "udp", "ipv4", "ipv6", "ethernet", "quic", "firewall", "vpn",
+    "wireguard", "proxy", "subnet", "packet", "datacenter", "data center",
+    "5g", "6g", "mesh network", "load balancer", "ddos", "cloudflare",
+    "fiber optic", "fibre optic", "optical fiber", "optical fibre",
+    "switching", "internet exchange", "peering", "broadband", "telecom",
+    "telecommunications", "isp", "access point", "access points", "cellular",
+    "submarine cable", "undersea cable", "sd-wan", "bandwidth", "latency",
+    "network management", "satellite internet",
 )
 _WORD_RE = re.compile(r"[a-z0-9]+(?:[- ][a-z0-9]+)?", re.I)
 
@@ -141,8 +147,14 @@ def fetch_meta_description(url):
 
 
 def topic_terms(text):
-    haystack = " " + re.sub(r"[^a-z0-9+.-]+", " ", (text or "").casefold()) + " "
-    return [term for term in KEYWORDS if term in haystack]
+    haystack = re.sub(r"[^a-z0-9]+", " ", (text or "").casefold())
+    found = []
+    for term in KEYWORDS:
+        normalized = re.sub(r"[^a-z0-9]+", " ", term.casefold()).strip()
+        pattern = r"(?<![a-z0-9])" + re.escape(normalized).replace(" ", r"\s+") + r"(?![a-z0-9])"
+        if re.search(pattern, haystack):
+            found.append(term)
+    return found
 
 
 def summary_from(value, fallback):
@@ -169,7 +181,7 @@ def fetch_hn_item(story_id):
             return None
         published = datetime.fromtimestamp(item.get("time", 0), tz=timezone.utc)
         age_hours = max(0.0, (datetime.now(timezone.utc) - published).total_seconds() / 3600)
-        if age_hours > 72:
+        if age_hours > 168:
             return None
         points = int(item.get("score", 0))
         comments = int(item.get("descendants", 0))
@@ -202,10 +214,10 @@ def collect_hn():
     ids = []
     for listing in ("topstories", "beststories"):
         try:
-            ids.extend(request_json(f"{HN_API}/{listing}.json")[:50])
+            ids.extend(request_json(f"{HN_API}/{listing}.json")[:100])
         except (urllib.error.URLError, TimeoutError, ValueError):
             log.exception("Could not fetch Hacker News %s", listing)
-    unique_ids = list(dict.fromkeys(ids))[:70]
+    unique_ids = list(dict.fromkeys(ids))[:140]
     stories = []
     with ThreadPoolExecutor(max_workers=8) as pool:
         futures = [pool.submit(fetch_hn_item, story_id) for story_id in unique_ids]
@@ -262,7 +274,7 @@ def parse_feed(xml_bytes, source, url):
             if published.tzinfo is None:
                 published = published.replace(tzinfo=timezone.utc)
             age_hours = max(0.0, (datetime.now(timezone.utc) - published.astimezone(timezone.utc)).total_seconds() / 3600)
-            if age_hours > 72:
+            if age_hours > 168:
                 continue
         fallback = f"Рекомендовано сообществом {source}; тема — {', '.join(terms[:3])}."
         items.append({
@@ -358,54 +370,55 @@ def translate_items_to_russian(items):
 def freedom_bridge(item):
     terms = set(item.get("terms", []))
     if terms & {"wifi", "wi-fi", "wireless", "mesh network"}:
-        return "Даже хороший Wi‑Fi зависит от линии до дома — проверьте, доступен ли интернет Фридом по вашему адресу."
+        return "Wi‑Fi зависит и от линии до дома — проверьте покрытие Фридом по адресу."
     if terms & {"fiber optic", "ethernet", "bgp", "routing", "internet exchange", "peering"}:
-        return "Практический контекст — доступность и стабильность линии до дома; проверьте покрытие Фридом по адресу."
+        return "Стабильность зависит от линии до дома — проверьте покрытие Фридом."
     if terms & {"vpn", "wireguard", "firewall", "ddos", "network security", "tls"}:
-        return "Безопасность начинается с надёжного подключения; проверьте доступность интернета Фридом по адресу."
-    return "Технология важна и в повседневном подключении — проверьте, доступен ли интернет Фридом по вашему адресу."
+        return "Надёжность начинается с линии доступа — проверьте покрытие Фридом."
+    return "Проверьте, доступен ли интернет Фридом по вашему адресу."
 
 
 def app_bridge(item):
     terms = set(item.get("terms", []))
     if terms & {"wifi", "wi-fi", "wireless", "mesh network"}:
-        return "Проверьте это на своей сети: WiFi Sonar показывает уровень сигнала, каналы и перекрытия."
+        return "WiFi Sonar покажет сигнал и загруженность Wi‑Fi-каналов."
     if terms & {"dns", "tcp", "udp", "routing", "bgp", "vpn", "wireguard", "firewall", "ddos"}:
-        return "WiFi Sonar поможет проверить параметры подключения, DNS, шлюз, задержку и потери пакетов."
-    return "WiFi Sonar поможет проверить сигнал, занятость Wi‑Fi-каналов и качество подключения дома."
+        return "WiFi Sonar проверит DNS, шлюз, задержку и параметры подключения."
+    return "WiFi Sonar поможет проверить Wi‑Fi и качество подключения."
 
 
 def why_in_digest(item):
     if item.get("points") is not None:
-        return (f"В Hacker News материал набрал {item['points']} баллов и "
-                f"{item.get('comments', 0)} комментариев — это сигнал заметного интереса сообщества.")
+        return (f"Hacker News: {item['points']} баллов, "
+                f"{item.get('comments', 0)} комментариев.")
     age = max(1, round(item.get("age", 24)))
-    return (f"Материал появился в тематической ленте {item.get('source', 'источника')} "
-            f"примерно {age} ч назад и вошёл в сегодняшнюю подборку свежих обсуждений.")
+    return (f"Свежая тематическая публикация в {item.get('source', 'источнике')}, "
+            f"около {age} ч назад.")
 
 
 def reader_context(item):
     terms = set(item.get("terms", []))
     if terms & {"wifi", "wi-fi", "wireless", "mesh network", "router"}:
-        return "Wi‑Fi и маршрутизаторы определяют, насколько стабильно устройства получают интернет дома и в офисе."
+        return "Wi‑Fi и роутеры влияют на стабильность интернета дома и в офисе."
     if terms & {"dns"}:
-        return "DNS находит IP-адреса сайтов по их именам; сбой или изменение DNS может затронуть доступ к множеству сервисов."
+        return "DNS связывает имена сайтов с IP-адресами; его сбой мешает открывать сервисы."
     if terms & {"bgp", "routing", "internet exchange", "peering"}:
-        return "Маршрутизация определяет, каким путём данные идут между сетями; изменения могут влиять на доступность и задержку."
+        return "Маршрутизация выбирает путь данных и влияет на доступность и задержки."
     if terms & {"vpn", "wireguard", "firewall", "ddos", "network security", "tls"}:
-        return "Эти технологии связаны с защитой трафика и доступом к сервисам, поэтому решения операторов и разработчиков влияют на безопасность пользователей."
+        return "Эти технологии защищают трафик и влияют на безопасность доступа к сервисам."
     if terms & {"fiber optic", "ethernet", "datacenter", "data center"}:
-        return "Оптика, Ethernet и дата-центры формируют основу пропускной способности и надёжности интернет-сервисов."
+        return "Оптика, Ethernet и дата-центры задают пропускную способность и надёжность сервисов."
     if terms & {"tcp", "udp", "quic", "packet"}:
-        return "Транспортные протоколы управляют доставкой данных и задержками — от этого зависит скорость и отзывчивость приложений."
-    return "Это часть инфраструктуры интернета: такие изменения могут отражаться на скорости, доступности и надёжности повседневных сервисов."
+        return "Протоколы доставки данных влияют на скорость и отзывчивость приложений."
+    return "Это часть инфраструктуры, от которой зависят скорость и доступность интернет-сервисов."
 
 
 def make_digest(items, slot_label, site_url, freedom_url, app_urls):
     if not items:
         return ""
-    lines = [f"<b>📡 WiFiSonar · {slot_label}</b>", "<i>3 популярных материала о сетях и интернете</i>", ""]
-    for index, item in enumerate(items[:3], 1):
+    lines = [f"<b>📡 WiFiSonar · {slot_label}</b>", f"<i>{len(items)} популярных материалов о сетях и интернете</i>", ""]
+    summary_slots = []
+    for index, item in enumerate(items[:5], 1):
         title = clean_text(item["title"])
         summary = clean_text(item["summary"])
         title = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -413,17 +426,17 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
         article_url = item["url"].replace("&", "&amp;").replace('"', "&quot;")
         lines.append(f"<b><a href=\"{article_url}\">{title}</a></b>")
         if item.get("has_content_summary"):
-            lines.append(f"<b>Выжимка:</b> {summary}")
+            label = "Выжимка"
+            summary_text = clean_text(item["summary"])
         else:
-            lines.append(f"<b>О чём материал:</b> Описание статьи источник не предоставил. {summary}")
+            label = "О чём материал"
+            summary_text = "Источник не предоставил описание. " + clean_text(item["summary"])
+        summary_slots.append((len(lines), label, summary_text))
+        lines.append(f"<b>{label}:</b> {summary}")
         why = why_in_digest(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         context = reader_context(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         lines.append(f"<b>Почему сейчас:</b> {why}")
         lines.append(f"<b>Контекст:</b> {context}")
-        if item.get("points") is not None:
-            lines.append(f"<i>Hacker News · {item['points']} баллов · {item['comments']} комментариев</i>")
-        else:
-            lines.append(f"<i>{item['source']}</i>")
         bridge = freedom_bridge(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         lines.append(f"<i>{bridge}</i> <a href=\"{freedom_url}\">Фридом ↗</a>")
         app_note = app_bridge(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -432,4 +445,17 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
         lines.append("")
     if site_url:
         lines.append(f"<a href=\"{site_url}\">Основной сайт ↗</a>")
-    return "\n".join(lines)
+    message = "\n".join(lines)
+    for limit in (220, 190, 160, 130, 100):
+        if len(message) <= 3900:
+            break
+        for line_index, label, summary_text in summary_slots:
+            excerpt = summary_text[:limit]
+            if len(summary_text) > limit:
+                excerpt = excerpt.rsplit(" ", 1)[0] + "…"
+            escaped_excerpt = excerpt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            lines[line_index] = f"<b>{label}:</b> {escaped_excerpt}"
+        message = "\n".join(lines)
+    if len(message) > 3900:
+        raise ValueError("Digest exceeds Telegram message limit")
+    return message

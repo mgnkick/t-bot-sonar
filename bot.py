@@ -30,7 +30,7 @@ HOOKS = [
     "Поймал сигнал из интернета: на сайте есть кое-что для тебя ✨",
     "Небольшое приключение на сегодня уже ждёт тебя по ссылке ниже 🚀",
 ]
-SCHEDULE = ((8, "утро"), (18, "вечер"))
+SCHEDULE = ((8, "утро"), (13, "день"), (18, "вечер"))
 REGIONS = (
     ("Краснодарский край", r"краснодар(?:ский край|ского края|ском крае)?|кубан[ьи]|соч[ьи]|анап[аыу]|новороссийск[а-я]*|армавир[а-я]*"),
     ("Республика Адыгея", r"адыге[яие]|адыгейск[а-я]*|майкоп[а-я]*"),
@@ -145,10 +145,10 @@ def choose_items(ranked, state, now):
             continue
     state["recent"] = retained
     fresh = [item for item in ranked if canonical_url(item["url"]) not in recent]
-    selected = fresh[:3]
-    if len(selected) < 3:
+    selected = fresh[:5]
+    if len(selected) < 5:
         selected.extend(item for item in ranked if item not in selected and canonical_url(item["url"]) not in {canonical_url(s["url"]) for s in selected})
-    return selected[:3]
+    return selected[:5]
 
 
 def maybe_publish_digest():
@@ -177,7 +177,7 @@ def maybe_publish_digest():
         try:
             ranked = collect_ranked()
             items = choose_items(ranked, state, now)
-            if len(items) < 3:
+            if len(items) < 4:
                 log.warning("Only %d eligible articles for %s digest; will retry", len(items), slot_name)
                 return
             items = translate_items_to_russian(items)
