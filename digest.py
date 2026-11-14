@@ -300,13 +300,12 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
         title = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         summary = summary.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         article_url = item["url"].replace("&", "&amp;").replace('"', "&quot;")
-        lines.append(f"<b>{index}. {title}</b>")
+        lines.append(f"<b><a href=\"{article_url}\">{title}</a></b>")
         lines.append(f"{summary}")
         if item.get("points") is not None:
             lines.append(f"<i>Hacker News · {item['points']} баллов · {item['comments']} комментариев</i>")
         else:
             lines.append(f"<i>{item['source']}</i>")
-        lines.append(f"<i><a href=\"{article_url}\">Первоисточник ↗</a></i>")
         bridge = freedom_bridge(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         lines.append(f"<i>{bridge}</i> <a href=\"{freedom_url}\">Фридом ↗</a>")
         app_note = app_bridge(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
