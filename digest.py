@@ -423,10 +423,17 @@ def reader_context(item):
 def make_digest(items, slot_label, site_url, freedom_url, app_urls):
     if not items:
         return ""
+
+    def clip(value, limit):
+        value = clean_text(value)
+        if len(value) <= limit:
+            return value
+        return value[:limit - 1].rsplit(" ", 1)[0] + "…"
+
     lines = [f"<b>📡 WiFiSonar · {slot_label}</b>", f"<i>{len(items)} популярных материалов о сетях и интернете</i>", ""]
     summary_slots = []
     for index, item in enumerate(items[:5], 1):
-        title = clean_text(item["title"])
+        title = clip(item["title"], 120)
         summary = clean_text(item["summary"])
         title = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         summary = summary.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -440,20 +447,20 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
             summary_text = "Источник не предоставил описание. " + clean_text(item["summary"])
         summary_slots.append((len(lines), label, summary_text))
         lines.append(f"<b>{label}:</b> {summary}")
-        why = why_in_digest(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        context = reader_context(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        why = clip(why_in_digest(item), 100).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        context = clip(reader_context(item), 110).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         lines.append(f"<b>Почему сейчас:</b> {why}")
         lines.append(f"<b>Контекст:</b> {context}")
-        bridge = freedom_bridge(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        bridge = clip(freedom_bridge(item), 85).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         lines.append(f"<i>{bridge}</i> <a href=\"{freedom_url}\">Фридом ↗</a>")
-        app_note = app_bridge(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        app_note = clip(app_bridge(item), 80).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         app_url = app_urls[index - 1]
         lines.append(f"<i>{app_note}</i> <a href=\"{app_url}\">WiFi Sonar для Android ↗</a>")
         lines.append("")
     if site_url:
         lines.append(f"<a href=\"{site_url}\">Основной сайт ↗</a>")
     message = "\n".join(lines)
-    for limit in (220, 190, 160, 130, 100):
+    for limit in (180, 150, 120, 90, 60):
         if len(message) <= 3900:
             break
         for line_index, label, summary_text in summary_slots:
