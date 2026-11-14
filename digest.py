@@ -151,8 +151,8 @@ def summary_from(value, fallback):
         return fallback
     sentences = re.split(r"(?<=[.!?])\s+", text)
     excerpt = " ".join(sentences[:4]).strip()
-    if len(excerpt) > 1000:
-        excerpt = excerpt[:997].rsplit(" ", 1)[0] + "…"
+    if len(excerpt) > 600:
+        excerpt = excerpt[:597].rsplit(" ", 1)[0] + "…"
     return excerpt or fallback
 
 
@@ -375,6 +375,32 @@ def app_bridge(item):
     return "WiFi Sonar поможет проверить сигнал, занятость Wi‑Fi-каналов и качество подключения дома."
 
 
+def why_in_digest(item):
+    if item.get("points") is not None:
+        return (f"В Hacker News материал набрал {item['points']} баллов и "
+                f"{item.get('comments', 0)} комментариев — это сигнал заметного интереса сообщества.")
+    age = max(1, round(item.get("age", 24)))
+    return (f"Материал появился в тематической ленте {item.get('source', 'источника')} "
+            f"примерно {age} ч назад и вошёл в сегодняшнюю подборку свежих обсуждений.")
+
+
+def reader_context(item):
+    terms = set(item.get("terms", []))
+    if terms & {"wifi", "wi-fi", "wireless", "mesh network", "router"}:
+        return "Wi‑Fi и маршрутизаторы определяют, насколько стабильно устройства получают интернет дома и в офисе."
+    if terms & {"dns"}:
+        return "DNS находит IP-адреса сайтов по их именам; сбой или изменение DNS может затронуть доступ к множеству сервисов."
+    if terms & {"bgp", "routing", "internet exchange", "peering"}:
+        return "Маршрутизация определяет, каким путём данные идут между сетями; изменения могут влиять на доступность и задержку."
+    if terms & {"vpn", "wireguard", "firewall", "ddos", "network security", "tls"}:
+        return "Эти технологии связаны с защитой трафика и доступом к сервисам, поэтому решения операторов и разработчиков влияют на безопасность пользователей."
+    if terms & {"fiber optic", "ethernet", "datacenter", "data center"}:
+        return "Оптика, Ethernet и дата-центры формируют основу пропускной способности и надёжности интернет-сервисов."
+    if terms & {"tcp", "udp", "quic", "packet"}:
+        return "Транспортные протоколы управляют доставкой данных и задержками — от этого зависит скорость и отзывчивость приложений."
+    return "Это часть инфраструктуры интернета: такие изменения могут отражаться на скорости, доступности и надёжности повседневных сервисов."
+
+
 def make_digest(items, slot_label, site_url, freedom_url, app_urls):
     if not items:
         return ""
@@ -390,6 +416,10 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
             lines.append(f"<b>Выжимка:</b> {summary}")
         else:
             lines.append(f"<b>О чём материал:</b> Описание статьи источник не предоставил. {summary}")
+        why = why_in_digest(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        context = reader_context(item).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        lines.append(f"<b>Почему сейчас:</b> {why}")
+        lines.append(f"<b>Контекст:</b> {context}")
         if item.get("points") is not None:
             lines.append(f"<i>Hacker News · {item['points']} баллов · {item['comments']} комментариев</i>")
         else:
