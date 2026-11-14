@@ -31,6 +31,7 @@ KEYWORDS = (
     "network security", "network operator", "internet", "internet access",
     "internet service provider", "internet outage", "wifi", "wi-fi", "wireless",
     "wireless lan", "wlan", "router", "routers", "routing", "bgp", "dns",
+    "wifi channel", "wi-fi channel", "wireless channel", "channel congestion",
     "tcp", "udp", "ipv4", "ipv6", "ethernet", "quic", "firewall", "vpn",
     "wireguard", "proxy", "subnet", "packet", "datacenter", "data center",
     "5g", "6g", "mesh network", "load balancer", "ddos", "cloudflare",
@@ -455,10 +456,10 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
         lines.append(f"<i>{bridge}</i> <a href=\"{freedom_url}\">Фридом ↗</a>")
         app_note = clip(app_bridge(item), 80).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         app_url = app_urls[index - 1]
-        lines.append(f"<i>{app_note}</i> <a href=\"{app_url}\">WiFi Sonar для Android ↗</a>")
+        lines.append(f"<i>{app_note}</i> <a href=\"{app_url}\">Разбор и WiFi Sonar ↗</a>")
         lines.append("")
     if site_url:
-        lines.append(f"<a href=\"{site_url}\">Основной сайт ↗</a>")
+        lines.append(f"<a href=\"{site_url}\">Практические инструкции и WiFi Sonar ↗</a>")
     message = "\n".join(lines)
     for limit in (180, 150, 120, 90, 60):
         if len(message) <= 3900:
