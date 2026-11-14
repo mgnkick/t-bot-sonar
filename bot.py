@@ -216,36 +216,50 @@ def handle(message):
                       "Команда /app — скачать WiFi Sonar для Android.\n"
                       "Команда /recommend — пример «Фридом» по теме или региону.\n\n"
                       "Выпуски выходят в 08:00 и 18:00 по UTC+3.\n\n"
-                      "Команды: /go — открыть сайт, /buzz — случайный повод, /help — помощь")
+                      "Команды: /go — открыть сайт, /buzz — случайный повод, /help — помощь",
+             campaign="wifi_sonar_bot_start")
     elif command == "/go":
-        send(chat_id, "Твоя точка приземления готова 🛬")
+        send(chat_id, "Твоя точка приземления готова 🛬", campaign="wifi_sonar_bot_go")
     elif command == "/app":
         send(chat_id, "WiFi Sonar помогает сканировать Wi‑Fi, сравнивать сигнал и каналы, проверять DNS, шлюз и задержку, а также обследовать покрытие в помещении.\n\n"
                       "Скачайте APK для Android 8.0 и новее. Результаты сканирования зависят от устройства, версии Android и выданных разрешений.",
              campaign="wifi_sonar_bot_app_command")
     elif command == "/buzz":
-        send(chat_id, random.choice(HOOKS))
+        send(chat_id, random.choice(HOOKS), campaign="wifi_sonar_bot_buzz")
     elif command == "/help":
         send(chat_id, "Подборки публикуются в канале дважды в день.\n"
                       "/recommend [тема или регион] — пример на сайте Фридом\n"
                       "/app — скачать WiFi Sonar для Android\n"
                       "/subscribe — ссылка на канал с выпусками\n"
                       "/go — перейти на сайт\n/buzz — получить повод заглянуть\n"
-                      "/start — начать заново")
+                      "/start — начать заново", campaign="wifi_sonar_bot_help")
     elif command == "/recommend":
         topic = text.partition(" ")[2]
-        send(chat_id, recommend_text(topic))
+        send(chat_id, recommend_text(topic), campaign="wifi_sonar_bot_recommend")
     elif command == "/subscribe":
-        send(chat_id, "Чтобы быть в курсе новых подборок, подпишитесь на @wifisonar: https://t.me/wifisonar")
+        send(chat_id, "Чтобы быть в курсе новых подборок, подпишитесь на @wifisonar: https://t.me/wifisonar",
+             campaign="wifi_sonar_bot_subscribe")
     elif should_refer_user(text):
         region = matched_region(text)
-        send(chat_id, recommend_text(region))
+        send(chat_id, recommend_text(region), campaign="wifi_sonar_bot_region_referral")
     else:
-        send(chat_id, "Открой подборку в канале, вызови /recommend или жми кнопку, чтобы перейти на сайт 😉")
+        send(chat_id, "Открой подборку в канале, вызови /recommend или жми кнопку, чтобы перейти на сайт 😉",
+             campaign="wifi_sonar_bot_reply")
 
 
 def main():
     offset = 0
+    try:
+        api("setMyCommands", {"commands": json.dumps([
+            {"command": "start", "description": "Начать работу с ботом"},
+            {"command": "app", "description": "Скачать WiFi Sonar для Android"},
+            {"command": "recommend", "description": "Фридом по теме или региону"},
+            {"command": "subscribe", "description": "Канал с подборками"},
+            {"command": "go", "description": "Открыть основной сайт"},
+            {"command": "help", "description": "Список команд"},
+        ], ensure_ascii=False)})
+    except (urllib.error.URLError, TimeoutError, RuntimeError):
+        log.exception("Could not update Telegram command menu")
     log.info("Bot is running; digests scheduled for 08:00 and 18:00 UTC+3 in %s", CHANNEL_ID)
     while True:
         try:
