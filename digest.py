@@ -240,15 +240,16 @@ def translate_items_to_russian(items):
     texts = []
     for item in items:
         texts.extend((item["title"], item["summary"]))
-    payload = urllib.parse.urlencode(
-        [("q", text) for text in texts] + [
-            ("source", "auto"), ("target", "ru"), ("format", "text")
-        ]
-    ).encode()
+    payload = json.dumps({
+        "q": texts,
+        "source": "auto",
+        "target": "ru",
+        "format": "text",
+    }).encode()
     request = urllib.request.Request(
         TRANSLATE_URL,
         data=payload,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        headers={"Content-Type": "application/json"},
     )
     try:
         with urllib.request.urlopen(request, timeout=90) as response:
