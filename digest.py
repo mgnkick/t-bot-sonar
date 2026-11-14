@@ -6,9 +6,11 @@ from email.utils import parsedate_to_datetime
 from html import unescape
 from html.parser import HTMLParser
 import json
+import ipaddress
 import logging
 import math
 import re
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -42,6 +44,28 @@ class TextOnly(HTMLParser):
         self.parts.append(data)
 
 
+class MetaDescriptionParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.descriptions = {}
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() != "meta":
+            return
+        values = {key.lower(): value or "" for key, value in attrs}
+        key = (values.get("property") or values.get("name") or "").lower()
+        content = clean_text(values.get("content", ""))
+        if content and key in ("og:description", "twitter:description", "description"):
+            self.descriptions.setdefault(key, content)
+
+
+class PublicRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, message, headers, new_url):
+        if not is_public_http_url(new_url):
+            raise urllib.error.URLError("Blocked non-public article redirect")
+        return super().redirect_request(request, fp, code, message, headers, new_url)
+
+
 def clean_text(value):
     parser = TextOnly()
     try:
@@ -72,6 +96,50 @@ def is_http_url(value):
         return False
 
 
+def is_public_http_url(value):
+    if not is_http_url(value):
+        return False
+    parts = urllib.parse.urlsplit(value)
+    host = parts.hostname
+    try:
+        try:
+            addresses = [ipaddress.ip_address(host)]
+        except ValueError:
+            port = parts.port or (443 if parts.scheme == "https" else 80)
+            addresses = [
+                ipaddress.ip_address(info[4][0].split("%", 1)[0])
+                for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+            ]
+        return bool(addresses) and all(address.is_global for address in addresses)
+    except (OSError, ValueError):
+        return False
+
+
+def fetch_meta_description(url):
+    if not is_public_http_url(url):
+        return ""
+    request = urllib.request.Request(url, headers={
+        "User-Agent": "t-bot-sonar/1.0 (+https://github.com/mgnkick/t-bot-sonar)",
+        "Accept": "text/html, application/xhtml+xml",
+    })
+    opener = urllib.request.build_opener(PublicRedirectHandler())
+    try:
+        with opener.open(request, timeout=6) as response:
+            content_type = response.headers.get_content_type()
+            if content_type not in ("text/html", "application/xhtml+xml"):
+                return ""
+            raw = response.read(512_000)
+            encoding = response.headers.get_content_charset() or "utf-8"
+        parser = MetaDescriptionParser()
+        parser.feed(raw.decode(encoding, errors="replace"))
+        return (parser.descriptions.get("og:description")
+                or parser.descriptions.get("twitter:description")
+                or parser.descriptions.get("description", ""))
+    except (urllib.error.URLError, TimeoutError, UnicodeError, ValueError, OSError):
+        log.debug("Could not fetch article description for %s", url, exc_info=True)
+        return ""
+
+
 def topic_terms(text):
     haystack = " " + re.sub(r"[^a-z0-9+.-]+", " ", (text or "").casefold()) + " "
     return [term for term in KEYWORDS if term in haystack]
@@ -82,9 +150,9 @@ def summary_from(value, fallback):
     if not text:
         return fallback
     sentences = re.split(r"(?<=[.!?])\s+", text)
-    excerpt = " ".join(sentences[:2]).strip()
-    if len(excerpt) > 300:
-        excerpt = excerpt[:297].rsplit(" ", 1)[0] + "…"
+    excerpt = " ".join(sentences[:4]).strip()
+    if len(excerpt) > 1000:
+        excerpt = excerpt[:997].rsplit(" ", 1)[0] + "…"
     return excerpt or fallback
 
 
@@ -107,13 +175,16 @@ def fetch_hn_item(story_id):
         comments = int(item.get("descendants", 0))
         popularity = (points + comments * 1.5 + 1) / math.sqrt(age_hours + 4)
         fallback = f"{points} баллов и {comments} комментариев на Hacker News; тема — {', '.join(terms[:3])}."
+        story_text = clean_text(item.get("text", ""))
         article_url = item.get("url") or f"https://news.ycombinator.com/item?id={story_id}"
         if not is_http_url(article_url):
             article_url = f"https://news.ycombinator.com/item?id={story_id}"
         return {
             "title": title,
             "url": article_url,
-            "summary": summary_from(item.get("text", ""), fallback),
+            "summary": summary_from(story_text, fallback),
+            "has_content_summary": bool(story_text),
+            "needs_meta_summary": not bool(story_text),
             "source": "Hacker News",
             "popularity": popularity,
             "age": age_hours,
@@ -198,6 +269,8 @@ def parse_feed(xml_bytes, source, url):
             "title": title,
             "url": link,
             "summary": summary_from(summary, fallback),
+            "has_content_summary": bool(summary),
+            "needs_meta_summary": not bool(summary),
             "source": source,
             "age": age_hours,
             "terms": terms,
@@ -233,7 +306,19 @@ def collect_ranked():
         old = deduped.get(key)
         if old is None or item["popularity"] > old["popularity"]:
             deduped[key] = item
-    return sorted(deduped.values(), key=lambda item: item["popularity"], reverse=True)
+    ranked = sorted(deduped.values(), key=lambda item: item["popularity"], reverse=True)
+    needs_summary = [item for item in ranked if item.get("needs_meta_summary")][:10]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(fetch_meta_description, item["url"]): item for item in needs_summary}
+        for future in as_completed(futures):
+            item = futures[future]
+            description = future.result()
+            if description:
+                item["summary"] = summary_from(description, item["summary"])
+                item["has_content_summary"] = True
+                item["needs_meta_summary"] = False
+    # Prefer stories with an actual publisher/community description when ranking is close.
+    return sorted(ranked, key=lambda item: (not item.get("has_content_summary", False), -item["popularity"]))
 
 
 def translate_items_to_russian(items):
@@ -301,7 +386,10 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
         summary = summary.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         article_url = item["url"].replace("&", "&amp;").replace('"', "&quot;")
         lines.append(f"<b><a href=\"{article_url}\">{title}</a></b>")
-        lines.append(f"{summary}")
+        if item.get("has_content_summary"):
+            lines.append(f"<b>Выжимка:</b> {summary}")
+        else:
+            lines.append(f"<b>О чём материал:</b> Описание статьи источник не предоставил. {summary}")
         if item.get("points") is not None:
             lines.append(f"<i>Hacker News · {item['points']} баллов · {item['comments']} комментариев</i>")
         else:
