@@ -9,6 +9,9 @@ User=tbot
 Group=tbot
 WorkingDirectory=/opt/t-bot-sonar
 EnvironmentFile=/etc/t-bot-sonar.env
+Environment=STATE_DIR=/var/lib/t-bot-sonar
+StateDirectory=t-bot-sonar
+StateDirectoryMode=0750
 ExecStart=/usr/bin/python3 /opt/t-bot-sonar/bot.py
 Restart=always
 RestartSec=5
