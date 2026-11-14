@@ -25,7 +25,9 @@ LOBSTERS_FEEDS = (
     ("Lobsters · security", "https://lobste.rs/t/security.rss"),
 )
 KEYWORDS = (
-    "networking", "computer network", "network protocol", "network infrastructure",
+    "networking", "computer network", "computer networking", "network", "networks",
+    "network protocol", "network infrastructure", "network performance", "network equipment",
+    "network hardware", "network stack", "network traffic", "network outage", "access network",
     "network security", "network operator", "internet", "internet access",
     "internet service provider", "internet outage", "wifi", "wi-fi", "wireless",
     "wireless lan", "wlan", "router", "routers", "routing", "bgp", "dns",
@@ -36,7 +38,8 @@ KEYWORDS = (
     "switching", "internet exchange", "peering", "broadband", "telecom",
     "telecommunications", "isp", "access point", "access points", "cellular",
     "submarine cable", "undersea cable", "sd-wan", "bandwidth", "latency",
-    "network management", "satellite internet",
+    "network management", "satellite internet", "internet infrastructure", "internet protocol",
+    "internet connectivity", "fiber internet", "wireless networking", "communication protocol",
 )
 _WORD_RE = re.compile(r"[a-z0-9]+(?:[- ][a-z0-9]+)?", re.I)
 
@@ -154,6 +157,10 @@ def topic_terms(text):
         pattern = r"(?<![a-z0-9])" + re.escape(normalized).replace(" ", r"\s+") + r"(?![a-z0-9])"
         if re.search(pattern, haystack):
             found.append(term)
+    # Do not let an unqualified social/neural network mention pass as networking news.
+    generic = {"network", "networks"}
+    if set(found) and set(found) <= generic:
+        return []
     return found
 
 
@@ -212,12 +219,12 @@ def fetch_hn_item(story_id):
 
 def collect_hn():
     ids = []
-    for listing in ("topstories", "beststories"):
+    for listing in ("topstories", "beststories", "showstories", "askstories", "newstories"):
         try:
-            ids.extend(request_json(f"{HN_API}/{listing}.json")[:100])
+            ids.extend(request_json(f"{HN_API}/{listing}.json")[:60])
         except (urllib.error.URLError, TimeoutError, ValueError):
             log.exception("Could not fetch Hacker News %s", listing)
-    unique_ids = list(dict.fromkeys(ids))[:140]
+    unique_ids = list(dict.fromkeys(ids))[:240]
     stories = []
     with ThreadPoolExecutor(max_workers=8) as pool:
         futures = [pool.submit(fetch_hn_item, story_id) for story_id in unique_ids]
