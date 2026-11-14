@@ -180,7 +180,7 @@ def parse_feed(xml_bytes, source, url):
             try:
                 published = parsedate_to_datetime(fields[date_field])
                 break
-            except (TypeError, ValueError, OverflowError):
+            except (KeyError, TypeError, ValueError, OverflowError):
                 try:
                     published = datetime.fromisoformat(fields[date_field].replace("Z", "+00:00"))
                     break
