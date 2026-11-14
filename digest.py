@@ -16,6 +16,7 @@ import xml.etree.ElementTree as ET
 
 log = logging.getLogger("t-bot-sonar.digest")
 HN_API = "https://hacker-news.firebaseio.com/v0"
+TRANSLATE_URL = "http://127.0.0.1:5000/translate"
 LOBSTERS_FEEDS = (
     ("Lobsters · главная", "https://lobste.rs/rss"),
     ("Lobsters · networking", "https://lobste.rs/t/networking.rss"),
@@ -235,6 +236,39 @@ def collect_ranked():
     return sorted(deduped.values(), key=lambda item: item["popularity"], reverse=True)
 
 
+def translate_items_to_russian(items):
+    texts = []
+    for item in items:
+        texts.extend((item["title"], item["summary"]))
+    payload = urllib.parse.urlencode(
+        [("q", text) for text in texts] + [
+            ("source", "auto"), ("target", "ru"), ("format", "text")
+        ]
+    ).encode()
+    request = urllib.request.Request(
+        TRANSLATE_URL,
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=90) as response:
+            result = json.loads(response.read())
+        translated = result.get("translatedText")
+        if isinstance(translated, str):
+            translated = [translated]
+        if not isinstance(translated, list) or len(translated) != len(texts):
+            raise ValueError("Unexpected translation response")
+    except (urllib.error.URLError, TimeoutError, ValueError, TypeError) as exc:
+        raise RuntimeError("Russian translation service is unavailable") from exc
+    result_items = []
+    for index, item in enumerate(items):
+        translated_item = dict(item)
+        translated_item["title"] = translated[index * 2].strip() or item["title"]
+        translated_item["summary"] = translated[index * 2 + 1].strip() or item["summary"]
+        result_items.append(translated_item)
+    return result_items
+
+
 def make_digest(items, slot_label, site_url):
     if not items:
         return ""
@@ -253,5 +287,5 @@ def make_digest(items, slot_label, site_url):
             lines.append(f"<i>{item['source']}</i>")
         lines.append("")
     if site_url:
-        lines.append(f"<a href=\"{site_url}\">WiFiSonar — заглянуть на сайт ↗</a>")
+        lines.append(f"<a href=\"{site_url}\">Фридом — проверить покрытие и тарифы ↗</a>")
     return "\n".join(lines)

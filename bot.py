@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import random
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -10,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 
-from digest import canonical_url, collect_ranked, make_digest
+from digest import canonical_url, collect_ranked, make_digest, translate_items_to_russian
 
 TOKEN = os.environ["BOT_TOKEN"]
 SITE_URL = os.environ["SITE_URL"].rstrip("/")
@@ -28,6 +29,17 @@ HOOKS = [
     "Небольшое приключение на сегодня уже ждёт тебя по ссылке ниже 🚀",
 ]
 SCHEDULE = ((8, "утро"), (18, "вечер"))
+REGIONS = (
+    ("Краснодарский край", r"краснодар(?:ский край|ского края|ском крае)?|кубан[ьи]|соч[ьи]|анап[аыу]|новороссийск[а-я]*|армавир[а-я]*"),
+    ("Республика Адыгея", r"адыге[яие]|адыгейск[а-я]*|майкоп[а-я]*"),
+    ("Республика Башкортостан", r"башкортостан[а-я]*|башкири[яие]|уф[аыеу]|стерлитамак[а-я]*|салават[а-я]*"),
+    ("Челябинская область", r"челябинск[а-я]*|магнитогорск[а-я]*|озёрск[а-я]*|озерск[а-я]*|миасс[а-я]*|златоуст[а-я]*"),
+)
+PROVIDER_INTENT = re.compile(
+    r"\b(интернет|провайдер\w*|provider\w*|подключ\w*|тариф\w*|"
+    r"домашн\w*\s+интернет\w*|wi[ -]?fi|вайфай|связ\w*)\b",
+    re.IGNORECASE,
+)
 
 
 def api(method, payload):
@@ -54,6 +66,33 @@ def send(chat_id, text):
         "reply_markup": button(),
         "disable_web_page_preview": "true",
     })
+
+
+def matched_region(text):
+    for label, pattern in REGIONS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return label
+    return None
+
+
+def recommend_text(topic=""):
+    topic = topic.strip()
+    region = matched_region(topic)
+    if region:
+        return (f"Ищете интернет-провайдера в регионе «{region}»? На сайте «Фридом» можно "
+                "проверить покрытие по адресу и посмотреть доступные тарифы. Доступность зависит от дома: "
+                "введите адрес на сайте.\n\nhttps://freedom1.ru/")
+    if topic:
+        return (f"По теме «{topic}» можно посмотреть публичный пример провайдера «Фридом»: "
+                "на сайте есть карта покрытия, проверка доступности по адресу и сведения об оптических линиях. "
+                "Это показывает, как провайдер представляет покрытие и подключение клиентам; внутреннюю "
+                "реализацию конкретной технологии сайт не раскрывает.\n\nhttps://freedom1.ru/")
+    return ("Практический пример интернет-провайдера «Фридом»: на сайте можно проверить покрытие "
+            "по адресу и посмотреть доступные тарифы.\n\nhttps://freedom1.ru/")
+
+
+def should_refer_user(text):
+    return bool(PROVIDER_INTENT.search(text) and matched_region(text))
 
 
 def load_state():
@@ -122,6 +161,7 @@ def maybe_publish_digest():
             if len(items) < 3:
                 log.warning("Only %d eligible articles for %s digest; will retry", len(items), slot_name)
                 return
+            items = translate_items_to_russian(items)
             label = f"{slot_name}, {slot_start.strftime('%H:%M')} · UTC+3"
             message = make_digest(items, label, escape(SITE_URL, quote=True))
             api("sendMessage", {
@@ -144,7 +184,8 @@ def handle(message):
     text = message.get("text", "").strip()
     command = text.split(maxsplit=1)[0].split("@", 1)[0] if text.startswith("/") else ""
     if command == "/start":
-        send(chat_id, "Привет! Дважды в день я собираю популярные материалы о сетях и интернете.\n\n"
+        send(chat_id, "Привет! Дважды в день я собираю популярные материалы о сетях и интернете.\n"
+                      "Команда /recommend — пример «Фридом» по теме или региону.\n\n"
                       "Выпуски выходят в 08:00 и 18:00 по UTC+3.\n\n"
                       "Команды: /go — открыть сайт, /buzz — случайный повод, /help — помощь")
     elif command == "/go":
@@ -153,10 +194,17 @@ def handle(message):
         send(chat_id, random.choice(HOOKS))
     elif command == "/help":
         send(chat_id, "Подборки публикуются в канале дважды в день.\n"
+                      "/recommend [тема или регион] — пример на сайте Фридом\n"
                       "/go — перейти на сайт\n/buzz — получить повод заглянуть\n"
                       "/start — начать заново")
+    elif command == "/recommend":
+        topic = text.partition(" ")[2]
+        send(chat_id, recommend_text(topic))
+    elif should_refer_user(text):
+        region = matched_region(text)
+        send(chat_id, recommend_text(region))
     else:
-        send(chat_id, "Открой подборку в канале или жми кнопку ниже, чтобы перейти на сайт 😉")
+        send(chat_id, "Открой подборку в канале, вызови /recommend или жми кнопку, чтобы перейти на сайт 😉")
 
 
 def main():
