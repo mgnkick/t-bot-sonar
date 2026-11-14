@@ -277,7 +277,7 @@ def maybe_publish_content():
         last_attempt = state.setdefault("attempts", {}).get(slot_key)
         if last_attempt:
             try:
-                if now - datetime.fromisoformat(last_attempt) < timedelta(minutes=30):
+                if now - datetime.fromisoformat(last_attempt) < timedelta(minutes=10):
                     continue
             except ValueError:
                 pass

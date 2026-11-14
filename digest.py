@@ -54,6 +54,13 @@ class TextOnly(HTMLParser):
         self.parts.append(data)
 
 
+def visible_text_length(html_text):
+    parser = TextOnly()
+    parser.feed(html_text)
+    visible = "".join(parser.parts)
+    return len(visible.encode("utf-16-le")) // 2
+
+
 class MetaDescriptionParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -462,7 +469,7 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
         lines.append(f"<a href=\"{site_url}\">Практические инструкции и WiFi Sonar ↗</a>")
     message = "\n".join(lines)
     for limit in (180, 150, 120, 90, 60):
-        if len(message) <= 3900:
+        if visible_text_length(message) <= 3900:
             break
         for line_index, label, summary_text in summary_slots:
             excerpt = summary_text[:limit]
@@ -471,6 +478,6 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
             escaped_excerpt = excerpt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             lines[line_index] = f"<b>{label}:</b> {escaped_excerpt}"
         message = "\n".join(lines)
-    if len(message) > 3900:
+    if visible_text_length(message) > 3900:
         raise ValueError("Digest exceeds Telegram message limit")
     return message
