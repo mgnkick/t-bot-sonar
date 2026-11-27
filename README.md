@@ -28,7 +28,7 @@ Telegram-бот с командами `/start`, `/go`, `/buzz`, `/help`, `/recom
 ## Запуск на Ubuntu через systemd
 
 1. Создайте бота у `@BotFather` через `/newbot` и получите токен.
-2. Создайте `/etc/t-bot-sonar.env` с переменными `BOT_TOKEN=...`, `SITE_URL=https://wifisonar.ru/`, `FREEDOM_URL=https://freedom1.ru/` и `CHANNEL_ID=@wifisonar` и заполните нужные `DONATE_*` реквизиты, затем ограничьте доступ: `chmod 600 /etc/t-bot-sonar.env`.
+2. Создайте `/etc/t-bot-sonar.env` с переменными `BOT_TOKEN=...`, `FREEDOM_URL=https://freedom1.ru/` и `CHANNEL_ID=@wifisonar` и заполните нужные `DONATE_*` реквизиты, затем ограничьте доступ: `chmod 600 /etc/t-bot-sonar.env`.
 3. Создайте системного пользователя `tbot`, скопируйте `t-bot-sonar.service` в `/etc/systemd/system/` и выполните `systemctl daemon-reload`, `systemctl enable --now t-bot-sonar`.
 4. Проверьте журнал: `journalctl -u t-bot-sonar -f`, затем отправьте боту `/start`.
 
