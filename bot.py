@@ -371,7 +371,7 @@ def maybe_publish_content():
                     translated, f"вечер · {slot_start.strftime('%H:%M')} · UTC+3",
                     html_text(FREEDOM_URL), html_text(apk.get("url", "")),
                 )
-                message = practical + "\\n\\n" + news
+                message = practical + "\n\n" + news
             api("sendMessage", {
                 "chat_id": CHANNEL_ID, "text": message, "parse_mode": "HTML",
                 "disable_web_page_preview": "true",
@@ -519,7 +519,7 @@ def apk_link_text():
     apk = latest_apk(force=True)
     if not apk.get("url"):
         return "Не удалось получить ссылку на последнюю подписанную сборку. Попробуйте позже."
-    return f"⬇️ WiFi Sonar {apk['version']} — скачать APK:\\n{apk['url']}"
+    return f"⬇️ WiFi Sonar {apk['version']} — скачать APK:\n{apk['url']}"
 
 
 def build_morning_digest(now, campaign):
@@ -575,11 +575,11 @@ def send_test_cycle(chat_id):
                 "reply_markup": button(campaign=campaign),
             })
             results.append(label + ": OK")
-        api("sendMessage", {"chat_id": chat_id, "text": "Тестовый цикл завершён.\\n" + "\\n".join(results)})
+        api("sendMessage", {"chat_id": chat_id, "text": "Тестовый цикл завершён.\n" + "\n".join(results)})
     except Exception as exc:
         log.exception("Test daily cycle failed")
         api("sendMessage", {"chat_id": chat_id, "text": "Тестовый цикл остановлен: " + str(exc)[:500]
-                            + "\\n" + "\\n".join(results)})
+                            + "\n" + "\n".join(results)})
 
 
 def handle(message):
@@ -600,10 +600,10 @@ def handle(message):
     elif command == "/app":
         apk = latest_apk(force=True)
         if apk.get("url"):
-            extra = f"\\n\\nАктуальная подписанная версия WiFi Sonar {apk['version']}:\\n{apk['url']}"
+            extra = f"\n\nАктуальная подписанная версия WiFi Sonar {apk['version']}:\n{apk['url']}"
         else:
-            extra = "\\n\\nСсылка на последнюю подписанную сборку временно недоступна."
-        send(chat_id, "WiFi Sonar помогает измерять сигнал, сравнивать каналы, проверять DNS, шлюз и задержку, а также отмечать покрытие на плане помещения.\\n\\n"
+            extra = "\n\nСсылка на последнюю подписанную сборку временно недоступна."
+        send(chat_id, "WiFi Sonar помогает измерять сигнал, сравнивать каналы, проверять DNS, шлюз и задержку, а также отмечать покрытие на плане помещения.\n\n"
                       "На сайте — инструкции и описание разрешений. Приложение рассчитано на Android 8.0 и новее." + extra,
              campaign="wifi_sonar_bot_app_command")
     elif command == "/donate":
