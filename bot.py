@@ -71,7 +71,7 @@ def tracked_site_url(path, campaign, content="landing"):
 DONATE_BTC_ADDRESS = os.getenv("DONATE_BTC_ADDRESS") or "bc1qy3772x4qs82adktgvp9ys7pgaurq0tj38kvzt8"
 DONATE_RVN_ADDRESS = os.getenv("DONATE_RVN_ADDRESS") or "RMW9R8bip7vUmMQV2xo8hSQuojgMFmfGW9"
 DONATE_SBER_CARD = os.getenv("DONATE_SBER_CARD") or "5336690304351846"
-DONATE_ETH_ADDRESS = os.getenv("DONATE_ETH_ADDRESS", "").strip()
+DONATE_ETH_ADDRESS = os.getenv("DONATE_ETH_ADDRESS") or "0x3621BA1773f64aBd909f89c21Df5149d9Cf6F3d1"
 if not re.fullmatch(r"0x[a-fA-F0-9]{40}", DONATE_ETH_ADDRESS):
     log.warning("ETH donation address is missing or invalid; hiding ETH option")
 
