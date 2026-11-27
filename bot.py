@@ -548,9 +548,10 @@ def send_test_cycle(chat_id):
     try:
         apk = latest_apk(force=True)
         results.append("APK: " + (apk.get("version") if apk.get("url") else "не найден"))
-        morning, _ = build_morning_digest(now, campaign)
+        morning, morning_items = build_morning_digest(now, campaign)
+        recent_keys = {canonical_url(item["url"]) for item in morning_items}
         ranked = collect_ranked()
-        evening_items = choose_items(ranked, {"recent": []}, now)[:5]
+        evening_items = [item for item in ranked if canonical_url(item["url"]) not in recent_keys][:5]
         if len(evening_items) < 4:
             raise RuntimeError("Недостаточно материалов для вечернего дайджеста")
         evening_items = translate_items_to_russian(evening_items)
