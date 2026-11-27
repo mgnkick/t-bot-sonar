@@ -486,12 +486,10 @@ def latest_apk(force=False):
             and run.get("status") == "completed"
             and run.get("conclusion") == "success"
         ]
+        releases = github_json(f"https://api.github.com/repos/{APK_REPO}/releases?per_page=100")
+        if isinstance(releases, dict):
+            releases = releases.get("items", [])
         for run in good_runs:
-            releases = github_json(
-                f"https://api.github.com/repos/{APK_REPO}/releases?per_page=100"
-            )
-            if isinstance(releases, dict):
-                releases = releases.get("items", [])
             release = next((item for item in releases
                             if not item.get("draft")
                             and item.get("target_commitish") == run.get("head_sha")), None)
