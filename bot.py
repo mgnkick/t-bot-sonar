@@ -84,7 +84,7 @@ if not re.fullmatch(r"0x[a-fA-F0-9]{40}", DONATE_ETH_ADDRESS):
 def button(include_channel=False, campaign="bot_menu", site_path=GUIDE_ROOT, apk_data=None):
     apk = apk_data if apk_data is not None else latest_apk()
     download_row = ([{"text": "⬇️ Скачать актуальный APK", "url": apk["url"]}]
-                    if apk and apk.get("url") else
+                    if isinstance(apk, dict) and apk.get("url") else
                     [{"text": "Скачать APK на сайте ↗", "url": tracked_site_url("/", campaign, "app_page")}])
     keyboard = [
         download_row,
@@ -364,7 +364,7 @@ def maybe_publish_content():
                 if len(items) < 4:
                     raise RuntimeError(f"Only {len(items)} eligible articles for evening digest")
                 translated = translate_items_to_russian(items)
-                apk = latest_apk()
+                apk = latest_apk() or {}
                 news = make_evening_news_digest(
                     translated, f"вечер · {slot_start.strftime('%H:%M')} · UTC+3",
                     html_text(FREEDOM_URL), html_text(apk.get("url", "")),
