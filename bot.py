@@ -654,7 +654,7 @@ def main():
         ], ensure_ascii=False)})
     except (urllib.error.URLError, TimeoutError, RuntimeError):
         log.exception("Could not update Telegram command menu")
-    log.info("Bot is running; content scheduled for 08:00, 13:00, and 18:00 UTC+3 in %s", CHANNEL_ID)
+    log.info("Bot is running; daily cycle: 08:00 morning digest, 13:00 tip, 18:00 explainer + evening news digest (UTC+3) in %s", CHANNEL_ID)
     while True:
         try:
             updates = api("getUpdates", {
