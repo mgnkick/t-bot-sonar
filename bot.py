@@ -122,6 +122,16 @@ def send_donation(chat_id, text, reply_markup):
     })
 
 
+def send(chat_id, text, campaign="bot_message", site_path=GUIDE_ROOT):
+    api("sendMessage", {
+        "chat_id": chat_id,
+        "text": text,
+        "reply_markup": button(include_channel=True, campaign=campaign, site_path=site_path),
+        "disable_web_page_preview": "true",
+    })
+
+
+
 def handle_callback(callback):
     data = callback.get("data", "")
     chat_id = callback["message"]["chat"]["id"]
@@ -186,16 +196,6 @@ def handle_callback(callback):
                 [{"text": "Назад к способам поддержки", "callback_data": "donate"}],
             ]}),
         })
-
-
-
-def send(chat_id, text, campaign="bot_message", site_path=GUIDE_ROOT):
-    api("sendMessage", {
-        "chat_id": chat_id,
-        "text": text,
-        "reply_markup": button(include_channel=True, campaign=campaign, site_path=site_path),
-        "disable_web_page_preview": "true",
-    })
 
 
 def matched_region(text):
@@ -442,7 +442,8 @@ def handle(message):
     if command == "/start":
         send(chat_id, "Привет! В @wifisonar выходят утренний дайджест, дневные советы по Wi‑Fi и вечерние разборы.\n"
                       "Нажми «Подписаться на канал», чтобы получать новые материалы.\n"
-                      "Команда /app — открыть инструкции и страницу WiFi Sonar.\n"
+                      "Команда /app — открыть сайт приложения.\n"
+                      "Команда /donate — поддержать развитие проекта.\n"
                       "Команда /recommend — пример «Фридом» по теме или региону.\n\n"
                       "Публикации выходят в 08:00, 13:00 и 18:00 по UTC+3.\n\n"
                       "Команды: /go — сайт приложения, /buzz — повод заглянуть, /donate — поддержать проект, /help — помощь",
@@ -460,7 +461,7 @@ def handle(message):
     elif command == "/help":
         send(chat_id, "В канале три формата: утренний дайджест, дневной практический совет и вечерний разбор.\n"
                       "/recommend [тема или регион] — пример на сайте Фридом\n"
-                      "/app — инструкции и страница WiFi Sonar\n"
+                      "/app — сайт приложения\n"
                       "/subscribe — ссылка на канал с выпусками\n"
                       "/go — перейти на сайт\n/buzz — получить повод заглянуть\n"
                       "/start — начать заново", campaign="wifi_sonar_bot_help")
