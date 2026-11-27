@@ -11,9 +11,14 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 
-from digest import canonical_url, collect_ranked, make_digest, translate_items_to_russian
+from digest import canonical_url, collect_ranked, make_digest, make_evening_news_digest, translate_items_to_russian
 
 TOKEN = os.environ["BOT_TOKEN"]
+APK_REPO = os.getenv("APK_REPO", "mgnkick/sonar")
+APK_WORKFLOW_PATH = os.getenv("APK_WORKFLOW_PATH", ".github/workflows/rustore-release.yml")
+APK_CACHE_TTL = int(os.getenv("APK_CACHE_TTL", "900"))
+APK_CACHE = {"checked_at": 0, "url": None, "version": None, "tag": None}
+TEST_CHAT_ID = os.getenv("TEST_CHAT_ID", "").strip()
 SITE_URL = "https://wifisonar.ru"
 FREEDOM_URL = os.getenv("FREEDOM_URL", "https://freedom1.ru/").rstrip("/")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@wifisonar")
@@ -77,7 +82,12 @@ if not re.fullmatch(r"0x[a-fA-F0-9]{40}", DONATE_ETH_ADDRESS):
 
 
 def button(include_channel=False, campaign="bot_menu", site_path=GUIDE_ROOT):
+    apk = latest_apk()
+    download_row = ([{"text": "⬇️ Скачать актуальный APK", "url": apk["url"]}]
+                    if apk and apk.get("url") else
+                    [{"text": "Скачать APK на сайте ↗", "url": tracked_site_url("/", campaign, "app_page")}])
     keyboard = [
+        download_row,
         [{"text": "Сайт приложения ↗", "url": tracked_site_url("/", campaign, "app_page")}],
         [{"text": "Фридом. Интернет друзей. ↗", "url": FREEDOM_URL}],
     ]
@@ -451,6 +461,123 @@ def handle_callback(callback):
     api("answerCallbackQuery", {"callback_query_id": callback["id"]})
 
 
+
+def github_json(url, timeout=15):
+    request = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "t-bot-sonar/1.0",
+    })
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read())
+
+
+def latest_apk(force=False):
+    now = time.time()
+    if not force and now - APK_CACHE["checked_at"] < APK_CACHE_TTL:
+        return APK_CACHE
+    try:
+        runs = github_json(
+            f"https://api.github.com/repos/{APK_REPO}/actions/runs?per_page=100"
+        ).get("workflow_runs", [])
+        good_runs = [
+            run for run in runs
+            if run.get("path") == APK_WORKFLOW_PATH
+            and run.get("head_branch") == "main"
+            and run.get("status") == "completed"
+            and run.get("conclusion") == "success"
+        ]
+        releases = github_json(f"https://api.github.com/repos/{APK_REPO}/releases?per_page=100")
+        if isinstance(releases, dict):
+            releases = releases.get("items", [])
+        by_commit = {release.get("target_commitish"): release
+                     for release in releases if not release.get("draft")}
+        for run in good_runs:
+            release = by_commit.get(run.get("head_sha"))
+            if not release:
+                continue
+            asset = next((item for item in release.get("assets", [])
+                          if item.get("name") == "WiFi-Sonar-release.apk"), None)
+            if asset and asset.get("browser_download_url"):
+                tag = release.get("tag_name", "")
+                match = re.search(r"wifi-sonar-v(.+?)-build-", tag)
+                APK_CACHE.update({
+                    "checked_at": now,
+                    "url": asset["browser_download_url"],
+                    "version": match.group(1) if match else release.get("name", "последняя"),
+                    "tag": tag,
+                })
+                return APK_CACHE
+        raise RuntimeError("No signed APK release for successful main workflow run")
+    except (urllib.error.URLError, TimeoutError, ValueError, KeyError, RuntimeError) as exc:
+        log.warning("Could not resolve latest signed APK: %s", exc, exc_info=True)
+        APK_CACHE["checked_at"] = now
+        return APK_CACHE
+
+
+def apk_link_text():
+    apk = latest_apk(force=True)
+    if not apk.get("url"):
+        return "Не удалось получить ссылку на последнюю подписанную сборку. Попробуйте позже."
+    return f"⬇️ WiFi Sonar {apk['version']} — скачать APK:\\n{apk['url']}"
+
+
+def build_morning_digest(now, campaign):
+    ranked = collect_ranked()
+    state = load_state()
+    items = choose_items(ranked, state, now)
+    if len(items) < 4:
+        raise RuntimeError(f"Недостаточно материалов для дайджеста: {len(items)}")
+    translated = translate_items_to_russian(items)
+    guide_urls = [tracked_site_url(guide_for_item(item), campaign, f"story_{i}")
+                  for i, item in enumerate(translated, 1)]
+    body = make_digest(
+        translated, f"утро, {now.strftime('%H:%M')} · UTC+3",
+        html_text(tracked_site_url(GUIDE_ROOT, campaign, "guide_hub")),
+        html_text(FREEDOM_URL), [html_text(url) for url in guide_urls],
+    )
+    return body, items
+
+
+def send_test_cycle(chat_id):
+    now = datetime.now(UTC_PLUS_3)
+    campaign = f"wifi_sonar_test_{now.strftime('%Y%m%d_%H%M%S')}"
+    results = []
+    try:
+        apk = latest_apk(force=True)
+        results.append("APK: " + (apk.get("version") if apk.get("url") else "не найден"))
+        morning, _ = build_morning_digest(now, campaign)
+        ranked = collect_ranked()
+        evening_items = choose_items(ranked, {"recent": []}, now)[:5]
+        if len(evening_items) < 4:
+            raise RuntimeError("Недостаточно материалов для вечернего дайджеста")
+        evening_items = translate_items_to_russian(evening_items)
+        day_post = DAY_TIPS[now.date().toordinal() % len(DAY_TIPS)]
+        evening_post = EVENING_EXPLAINERS[(now.date().toordinal() + 2) % len(EVENING_EXPLAINERS)]
+        day_body = make_practical_post(day_post, f"ТЕСТ · день · {now:%H:%M} UTC+3", campaign)
+        explain_body = make_practical_post(evening_post, f"ТЕСТ · вечерний разбор · {now:%H:%M} UTC+3", campaign)
+        news_body = make_evening_news_digest(
+            evening_items, f"ТЕСТ · вечерний дайджест · {now:%H:%M} UTC+3",
+            html_text(FREEDOM_URL), html_text(apk.get("url", "")),
+        )
+        for label, body in (
+            ("Утренний дайджест", morning),
+            ("Дневной совет", day_body),
+            ("Вечерний разбор", explain_body),
+            ("Вечерний новостной дайджест", news_body),
+        ):
+            api("sendMessage", {
+                "chat_id": chat_id, "text": body, "parse_mode": "HTML",
+                "disable_web_page_preview": "true",
+                "reply_markup": button(campaign=campaign),
+            })
+            results.append(label + ": OK")
+        api("sendMessage", {"chat_id": chat_id, "text": "Тестовый цикл завершён.\\n" + "\\n".join(results)})
+    except Exception as exc:
+        log.exception("Test daily cycle failed")
+        api("sendMessage", {"chat_id": chat_id, "text": "Тестовый цикл остановлен: " + str(exc)[:500]
+                            + "\\n" + "\\n".join(results)})
+
+
 def handle(message):
     chat_id = message["chat"]["id"]
     text = message.get("text", "").strip()
@@ -467,11 +594,23 @@ def handle(message):
     elif command == "/go":
         send(chat_id, "Твоя точка приземления готова 🛬", campaign="wifi_sonar_bot_go")
     elif command == "/app":
-        send(chat_id, "WiFi Sonar помогает измерять сигнал, сравнивать каналы, проверять DNS, шлюз и задержку, а также отмечать покрытие на плане помещения.\n\n"
-                      "На сайте — практические инструкции, описание разрешений и APK для Android 8.0 и новее. Доступность показаний зависит от устройства и версии Android.",
+        apk = latest_apk(force=True)
+        if apk.get("url"):
+            extra = f"\\n\\nАктуальная подписанная версия WiFi Sonar {apk['version']}:\\n{apk['url']}"
+        else:
+            extra = "\\n\\nСсылка на последнюю подписанную сборку временно недоступна."
+        send(chat_id, "WiFi Sonar помогает измерять сигнал, сравнивать каналы, проверять DNS, шлюз и задержку, а также отмечать покрытие на плане помещения.\\n\\n"
+                      "На сайте — инструкции и описание разрешений. Приложение рассчитано на Android 8.0 и новее." + extra,
              campaign="wifi_sonar_bot_app_command")
     elif command == "/donate":
         send_donation(chat_id, donation_text(), donation_keyboard())
+    elif command == "/apk":
+        send(chat_id, apk_link_text(), campaign="wifi_sonar_bot_apk")
+    elif command == "/testday":
+        if not TEST_CHAT_ID or str(chat_id) != TEST_CHAT_ID:
+            send(chat_id, "Тестовый прогон доступен только администратору.")
+        else:
+            send_test_cycle(chat_id)
     elif command == "/buzz":
         send(chat_id, random.choice(HOOKS), campaign="wifi_sonar_bot_buzz")
     elif command == "/help":
@@ -501,7 +640,7 @@ def main():
     try:
         api("setMyCommands", {"commands": json.dumps([
             {"command": "start", "description": "Начать работу с ботом"},
-            {"command": "app", "description": "Сайт приложения"},
+            {"command": "app", "description": "Сайт и актуальный APK"},\n            {"command": "apk", "description": "Скачать актуальный APK"},\n            {"command": "testday", "description": "Тестовый прогон дневного цикла"},
             {"command": "donate", "description": "Поддержать WiFi Sonar"},
             {"command": "recommend", "description": "Фридом по теме или региону"},
             {"command": "subscribe", "description": "Канал с подборками"},
