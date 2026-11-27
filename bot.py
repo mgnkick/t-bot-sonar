@@ -482,6 +482,7 @@ def latest_apk(force=False):
             run for run in runs
             if run.get("path") == APK_WORKFLOW_PATH
             and run.get("head_branch") == "main"
+            and run.get("event") == "workflow_dispatch"
             and run.get("status") == "completed"
             and run.get("conclusion") == "success"
         ]
