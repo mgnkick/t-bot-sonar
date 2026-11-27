@@ -132,6 +132,79 @@ def send(chat_id, text, campaign="bot_message", site_path=GUIDE_ROOT):
 
 
 
+def handle_callback(callback):
+    data = callback.get("data", "")
+    message = callback.get("message") or {}
+    chat = message.get("chat") or {}
+    chat_id = chat.get("id")
+    message_id = message.get("message_id")
+    if not chat_id or not message_id:
+        api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Не удалось открыть меню."})
+        return
+
+    if data in ("donate", "donate_back"):
+        api("editMessageText", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": donation_text(),
+            "reply_markup": donation_keyboard(),
+        })
+    elif data == "donate_crypto":
+        if not any(os.getenv(f"DONATE_{coin}_ADDRESS", "").strip() for coin in ("BTC", "ETH", "RVN")):
+            api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Криптореквизиты пока не настроены."})
+            return
+        api("editMessageText", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": "Выберите криптовалюту. Отправляйте средства только в соответствующую сеть:",
+            "reply_markup": crypto_keyboard(),
+        })
+    elif data.startswith("donate_coin_"):
+        coin = data.removeprefix("donate_coin_").upper()
+        if coin not in ("BTC", "ETH", "RVN"):
+            api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Неизвестная валюта."})
+            return
+        address = os.getenv(f"DONATE_{coin}_ADDRESS", "").strip()
+        if not address:
+            api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Этот кошелёк пока не настроен."})
+            return
+        network_names = {"BTC": "Bitcoin", "ETH": "Ethereum", "RVN": "Ravencoin"}
+        api("editMessageText", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": (f"❤️ Поддержать WiFi Sonar · {coin}\\n\\n"
+                     f"Сеть: {network_names[coin]}\\n"
+                     f"Адрес кошелька:\\n<code>{html_text(address)}</code>\\n\\n"
+                     "Перед отправкой обязательно сверьте сеть и адрес. Перевод в другую сеть может привести к потере средств."),
+            "parse_mode": "HTML",
+            "reply_markup": json.dumps({"inline_keyboard": [
+                [{"text": "Назад к выбору криптовалюты", "callback_data": "donate_crypto"}],
+            ]}),
+        })
+    elif data == "donate_sber":
+        card = os.getenv("DONATE_SBER_CARD", "").strip()
+        recipient = os.getenv("DONATE_SBER_RECIPIENT", "").strip()
+        if not card:
+            api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Реквизиты Сбера пока не настроены."})
+            return
+        text = "❤️ Поддержать WiFi Sonar · Сбербанк\\n\\n"
+        text += f"Карта: <code>{html_text(card)}</code>\\n"
+        if recipient:
+            text += f"Получатель: {html_text(recipient)}\\n"
+        text += "\\nПеревод в рублях. Спасибо за поддержку!"
+        api("editMessageText", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "reply_markup": json.dumps({"inline_keyboard": [
+                [{"text": "Назад к способам поддержки", "callback_data": "donate"}],
+            ]}),
+        })
+
+    api("answerCallbackQuery", {"callback_query_id": callback["id"]})
+
+
 def handle(message):
     chat_id = message["chat"]["id"]
     text = message.get("text", "").strip()
@@ -160,6 +233,7 @@ def handle(message):
                       "/recommend [тема или регион] — пример на сайте Фридом\n"
                       "/app — сайт приложения\n"
                       "/subscribe — ссылка на канал с выпусками\n"
+                      "/donate — поддержать проект\n"
                       "/go — перейти на сайт\n/buzz — получить повод заглянуть\n"
                       "/start — начать заново", campaign="wifi_sonar_bot_help")
     elif command == "/recommend":
