@@ -14,7 +14,7 @@ from pathlib import Path
 from digest import canonical_url, collect_ranked, make_digest, translate_items_to_russian
 
 TOKEN = os.environ["BOT_TOKEN"]
-SITE_URL = os.environ["SITE_URL"].rstrip("/")
+SITE_URL = "https://wifisonar.ru"
 FREEDOM_URL = os.getenv("FREEDOM_URL", "https://freedom1.ru/").rstrip("/")
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@wifisonar")
 API = f"https://api.telegram.org/bot{TOKEN}"
@@ -68,6 +68,14 @@ def tracked_site_url(path, campaign, content="landing"):
     return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, urllib.parse.urlencode(params), parts.fragment))
 
 
+DONATE_BTC_ADDRESS = os.getenv("DONATE_BTC_ADDRESS") or "bc1qy3772x4qs82adktgvp9ys7pgaurq0tj38kvzt8"
+DONATE_RVN_ADDRESS = os.getenv("DONATE_RVN_ADDRESS") or "RMW9R8bip7vUmMQV2xo8hSQuojgMFmfGW9"
+DONATE_SBER_CARD = os.getenv("DONATE_SBER_CARD") or "5336690304351846"
+DONATE_ETH_ADDRESS = os.getenv("DONATE_ETH_ADDRESS", "").strip()
+if not re.fullmatch(r"0x[a-fA-F0-9]{40}", DONATE_ETH_ADDRESS):
+    log.warning("ETH donation address is missing or invalid; hiding ETH option")
+
+
 def button(include_channel=False, campaign="bot_menu", site_path=GUIDE_ROOT):
     keyboard = [
         [{"text": "Сайт приложения ↗", "url": tracked_site_url("/", campaign, "app_page")}],
@@ -89,9 +97,9 @@ def donation_keyboard():
 
 def crypto_keyboard():
     coins = [
-        ("BTC", os.getenv("DONATE_BTC_ADDRESS", "")),
-        ("ETH", os.getenv("DONATE_ETH_ADDRESS", "")),
-        ("RVN", os.getenv("DONATE_RVN_ADDRESS", "")),
+        ("BTC", DONATE_BTC_ADDRESS),
+        ("ETH", DONATE_ETH_ADDRESS),
+        ("RVN", DONATE_RVN_ADDRESS),
     ]
     buttons = [[{"text": symbol, "callback_data": f"donate_coin_{symbol.lower()}"}]
                for symbol, address in coins if address]
@@ -101,9 +109,9 @@ def crypto_keyboard():
 
 def donation_text():
     methods = []
-    if any(os.getenv(f"DONATE_{coin}_ADDRESS") for coin in ("BTC", "ETH", "RVN")):
+    if any((DONATE_BTC_ADDRESS, DONATE_ETH_ADDRESS, DONATE_RVN_ADDRESS)):
         methods.append("криптовалютой")
-    if os.getenv("DONATE_SBER_CARD"):
+    if DONATE_SBER_CARD:
         methods.append("на карту Сбера в рублях")
     if not methods:
         return ("Спасибо, что хотите поддержать развитие WiFi Sonar! ❤️\\n\\n"
@@ -151,7 +159,7 @@ def handle_callback(callback):
             "reply_markup": donation_keyboard(),
         })
     elif data == "donate_crypto":
-        if not any(os.getenv(f"DONATE_{coin}_ADDRESS", "").strip() for coin in ("BTC", "ETH", "RVN")):
+        if not any((DONATE_BTC_ADDRESS, DONATE_ETH_ADDRESS, DONATE_RVN_ADDRESS)):
             api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Криптореквизиты пока не настроены."})
             return
         api("editMessageText", {
@@ -165,7 +173,7 @@ def handle_callback(callback):
         if coin not in ("BTC", "ETH", "RVN"):
             api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Неизвестная валюта."})
             return
-        address = os.getenv(f"DONATE_{coin}_ADDRESS", "").strip()
+        address = {"BTC": DONATE_BTC_ADDRESS, "ETH": DONATE_ETH_ADDRESS, "RVN": DONATE_RVN_ADDRESS}[coin]
         if not address:
             api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Этот кошелёк пока не настроен."})
             return
@@ -175,7 +183,7 @@ def handle_callback(callback):
             "message_id": message_id,
             "text": (f"❤️ Поддержать WiFi Sonar · {coin}\\n\\n"
                      f"Сеть: {network_names[coin]}\\n"
-                     f"Адрес кошелька:\\n<code>{html_text(address)}</code>\\n\\n"
+                     f"Адрес кошелька:\\n<code>{escape(address)}</code>\\n\\n"
                      "Перед отправкой обязательно сверьте сеть и адрес. Перевод в другую сеть может привести к потере средств."),
             "parse_mode": "HTML",
             "reply_markup": json.dumps({"inline_keyboard": [
@@ -183,15 +191,15 @@ def handle_callback(callback):
             ]}),
         })
     elif data == "donate_sber":
-        card = os.getenv("DONATE_SBER_CARD", "").strip()
+        card = DONATE_SBER_CARD
         recipient = os.getenv("DONATE_SBER_RECIPIENT", "").strip()
         if not card:
             api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Реквизиты Сбера пока не настроены."})
             return
         text = "❤️ Поддержать WiFi Sonar · Сбербанк\\n\\n"
-        text += f"Карта: <code>{html_text(card)}</code>\\n"
+        text += f"Карта: <code>{escape(card)}</code>\\n"
         if recipient:
-            text += f"Получатель: {html_text(recipient)}\\n"
+            text += f"Получатель: {escape(recipient)}\\n"
         text += "\\nПеревод в рублях. Спасибо за поддержку!"
         api("editMessageText", {
             "chat_id": chat_id,
