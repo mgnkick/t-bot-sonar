@@ -70,13 +70,123 @@ def tracked_site_url(path, campaign, content="landing"):
 
 def button(include_channel=False, campaign="bot_menu", site_path=GUIDE_ROOT):
     keyboard = [
-        [{"text": "Инструкция и WiFi Sonar ↗", "url": tracked_site_url(site_path, campaign, "primary_cta")}],
-        [{"text": "О приложении на сайте ↗", "url": tracked_site_url("/", campaign, "app_page")}],
-        [{"text": "Проверить Фридом ↗", "url": FREEDOM_URL}],
+        [{"text": "Сайт приложения ↗", "url": tracked_site_url("/", campaign, "app_page")}],
+        [{"text": "Фридом. Интернет друзей. ↗", "url": FREEDOM_URL}],
     ]
     if include_channel:
         keyboard.append([{"text": "Подписаться на канал ↗", "url": "https://t.me/wifisonar"}])
+        keyboard.append([{"text": "Поддержать WiFi Sonar ❤️", "callback_data": "donate"}])
     return json.dumps({"inline_keyboard": keyboard})
+
+
+def donation_keyboard():
+    return json.dumps({"inline_keyboard": [
+        [{"text": "Криптовалюта", "callback_data": "donate_crypto"}],
+        [{"text": "Сбербанк · RUB", "callback_data": "donate_sber"}],
+        [{"text": "Назад", "callback_data": "donate_back"}],
+    ]})
+
+
+def crypto_keyboard():
+    coins = [
+        ("BTC", os.getenv("DONATE_BTC_ADDRESS", "")),
+        ("ETH", os.getenv("DONATE_ETH_ADDRESS", "")),
+        ("RVN", os.getenv("DONATE_RVN_ADDRESS", "")),
+    ]
+    buttons = [[{"text": symbol, "callback_data": f"donate_coin_{symbol.lower()}"}]
+               for symbol, address in coins if address]
+    buttons.append([{"text": "Назад", "callback_data": "donate"}])
+    return json.dumps({"inline_keyboard": buttons})
+
+
+def donation_text():
+    methods = []
+    if any(os.getenv(f"DONATE_{coin}_ADDRESS") for coin in ("BTC", "ETH", "RVN")):
+        methods.append("криптовалютой")
+    if os.getenv("DONATE_SBER_CARD"):
+        methods.append("на карту Сбера в рублях")
+    if not methods:
+        return ("Спасибо, что хотите поддержать развитие WiFi Sonar! ❤️\\n\\n"
+                "Реквизиты пока настраиваются. Загляните немного позже.")
+    return ("Спасибо за интерес к поддержке WiFi Sonar! ❤️\\n\\n"
+            "Можно поддержать проект " + " или ".join(methods) + ".\\n"
+            "Выберите удобный способ ниже.")
+
+
+def send_donation(chat_id, text, reply_markup):
+    api("sendMessage", {
+        "chat_id": chat_id,
+        "text": text,
+        "reply_markup": reply_markup,
+        "disable_web_page_preview": "true",
+    })
+
+
+def handle_callback(callback):
+    data = callback.get("data", "")
+    chat_id = callback["message"]["chat"]["id"]
+    message_id = callback["message"]["message_id"]
+
+    if data in ("donate", "donate_back"):
+        api("editMessageText", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": donation_text(),
+            "reply_markup": donation_keyboard(),
+        })
+    elif data == "donate_crypto":
+        if not any(os.getenv(f"DONATE_{coin}_ADDRESS") for coin in ("BTC", "ETH", "RVN")):
+            response = "Криптореквизиты пока не настроены."
+            api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": response})
+            return
+        api("editMessageText", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": "Выберите криптовалюту. Отправляйте средства только в указанную сеть:",
+            "reply_markup": crypto_keyboard(),
+        })
+    elif data.startswith("donate_coin_"):
+        coin = data.removeprefix("donate_coin_").upper()
+        if coin not in ("BTC", "ETH", "RVN"):
+            return
+        address = os.getenv(f"DONATE_{coin}_ADDRESS", "").strip()
+        if not address:
+            api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Этот кошелёк пока не настроен."})
+            return
+        network_names = {"BTC": "Bitcoin", "ETH": "Ethereum", "RVN": "Ravencoin"}
+        api("editMessageText", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": (f"❤️ Поддержать WiFi Sonar · {coin}\\n\\n"
+                     f"Сеть: {network_names[coin]}\\n"
+                     f"Адрес кошелька:\\n<code>{html_text(address)}</code>\\n\\n"
+                     "Перед отправкой обязательно проверьте выбранную сеть и адрес."),
+            "parse_mode": "HTML",
+            "reply_markup": json.dumps({"inline_keyboard": [
+                [{"text": "Назад к способам поддержки", "callback_data": "donate_crypto"}],
+            ]}),
+        })
+    elif data == "donate_sber":
+        card = os.getenv("DONATE_SBER_CARD", "").strip()
+        recipient = os.getenv("DONATE_SBER_RECIPIENT", "").strip()
+        if not card:
+            api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Реквизиты Сбера пока не настроены."})
+            return
+        text = "❤️ Поддержать WiFi Sonar · Сбербанк\\n\\n"
+        text += f"Карта: <code>{html_text(card)}</code>\\n"
+        if recipient:
+            text += f"Получатель: {html_text(recipient)}\\n"
+        text += "\\nПеревод в рублях. Спасибо за поддержку!"
+        api("editMessageText", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "reply_markup": json.dumps({"inline_keyboard": [
+                [{"text": "Назад к способам поддержки", "callback_data": "donate"}],
+            ]}),
+        })
+
 
 
 def send(chat_id, text, campaign="bot_message", site_path=GUIDE_ROOT):
@@ -255,8 +365,8 @@ def make_practical_post(post, slot_label, campaign):
         "",
         f"<b>Что сделать:</b> {html_text(post['action'])}",
         "",
-        f"<a href=\"{html_text(page_url)}\">Пошаговая инструкция и WiFi Sonar ↗</a>",
-        f"<i>Проверьте доступность интернета Фридом по адресу:</i> <a href=\"{html_text(FREEDOM_URL)}\">Фридом ↗</a>",
+        f"<a href=\"{html_text(page_url)}\">Сайт приложения ↗</a>",
+        f"<i>Проверьте доступность интернета по адресу:</i> <a href=\"{html_text(FREEDOM_URL)}\">Фридом. Интернет друзей. ↗</a>",
     ]
     return "\n".join(lines)
 
@@ -335,7 +445,7 @@ def handle(message):
                       "Команда /app — открыть инструкции и страницу WiFi Sonar.\n"
                       "Команда /recommend — пример «Фридом» по теме или региону.\n\n"
                       "Публикации выходят в 08:00, 13:00 и 18:00 по UTC+3.\n\n"
-                      "Команды: /go — инструкции на сайте, /buzz — повод заглянуть, /help — помощь",
+                      "Команды: /go — сайт приложения, /buzz — повод заглянуть, /donate — поддержать проект, /help — помощь",
              campaign="wifi_sonar_bot_start")
     elif command == "/go":
         send(chat_id, "Твоя точка приземления готова 🛬", campaign="wifi_sonar_bot_go")
@@ -343,6 +453,8 @@ def handle(message):
         send(chat_id, "WiFi Sonar помогает измерять сигнал, сравнивать каналы, проверять DNS, шлюз и задержку, а также отмечать покрытие на плане помещения.\n\n"
                       "На сайте — практические инструкции, описание разрешений и APK для Android 8.0 и новее. Доступность показаний зависит от устройства и версии Android.",
              campaign="wifi_sonar_bot_app_command")
+    elif command == "/donate":
+        send_donation(chat_id, donation_text(), donation_keyboard())
     elif command == "/buzz":
         send(chat_id, random.choice(HOOKS), campaign="wifi_sonar_bot_buzz")
     elif command == "/help":
@@ -371,7 +483,8 @@ def main():
     try:
         api("setMyCommands", {"commands": json.dumps([
             {"command": "start", "description": "Начать работу с ботом"},
-            {"command": "app", "description": "Инструкции и страница WiFi Sonar"},
+            {"command": "app", "description": "Сайт приложения"},
+            {"command": "donate", "description": "Поддержать WiFi Sonar"},
             {"command": "recommend", "description": "Фридом по теме или региону"},
             {"command": "subscribe", "description": "Канал с подборками"},
             {"command": "go", "description": "Открыть основной сайт"},
@@ -385,7 +498,7 @@ def main():
             updates = api("getUpdates", {
                 "offset": offset,
                 "timeout": 30,
-                "allowed_updates": '["message"]',
+                "allowed_updates": '["message", "callback_query"]',
             })
             for update in updates:
                 offset = update["update_id"] + 1
@@ -394,6 +507,11 @@ def main():
                         handle(update["message"])
                     except (urllib.error.URLError, KeyError, ValueError, RuntimeError):
                         log.exception("Could not handle update %s", update["update_id"])
+                elif "callback_query" in update:
+                    try:
+                        handle_callback(update["callback_query"])
+                    except (urllib.error.URLError, KeyError, ValueError, RuntimeError):
+                        log.exception("Could not handle callback %s", update["update_id"])
             maybe_publish_content()
         except (urllib.error.URLError, TimeoutError, RuntimeError):
             log.exception("Polling failed; retrying in 5 seconds")
