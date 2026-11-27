@@ -343,8 +343,7 @@ def maybe_publish_content():
                     continue
             except ValueError:
                 pass
-        state["attempts"][slot_key] = now.isoformat()
-        save_state(state)
+        # Build the entire message first. Record an attempt only immediately before send.
         campaign = f"wifi_sonar_{slot_name}_{now.strftime('%Y%m%d')}"
         site_path = GUIDE_ROOT
         items = []
@@ -353,11 +352,10 @@ def maybe_publish_content():
             if slot_name == "утро":
                 message, items = build_morning_digest(now, campaign)
             elif slot_name == "день":
-                post = DAY_TIPS[(now.date().toordinal()) % len(DAY_TIPS)]
+                post = DAY_TIPS[now.date().toordinal() % len(DAY_TIPS)]
                 site_path = post["path"]
                 message = make_practical_post(post, label, campaign)
             else:
-                # Keep the 18:00 practical explainer and publish a separate news roundup.
                 post = EVENING_EXPLAINERS[(now.date().toordinal() + 2) % len(EVENING_EXPLAINERS)]
                 site_path = post["path"]
                 practical = make_practical_post(post, label, campaign)
@@ -372,6 +370,9 @@ def maybe_publish_content():
                     html_text(FREEDOM_URL), html_text(apk.get("url", "")),
                 )
                 message = practical + "\n\n" + news
+
+            state.setdefault("attempts", {})[slot_key] = now.isoformat()
+            save_state(state)
             api("sendMessage", {
                 "chat_id": CHANNEL_ID, "text": message, "parse_mode": "HTML",
                 "disable_web_page_preview": "true",
