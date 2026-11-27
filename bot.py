@@ -117,6 +117,7 @@ def send_donation(chat_id, text, reply_markup):
     api("sendMessage", {
         "chat_id": chat_id,
         "text": text,
+        "parse_mode": "HTML",
         "reply_markup": reply_markup,
         "disable_web_page_preview": "true",
     })
