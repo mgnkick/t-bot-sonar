@@ -549,7 +549,7 @@ def send_test_cycle(chat_id):
         apk = latest_apk(force=True)
         results.append("APK: " + (apk.get("version") if apk.get("url") else "не найден"))
         morning, _ = build_morning_digest(now, campaign)
-        ranked = collect_ranked()
+        # Reuse the same fetched ranking; evening test selects without prior-state exclusions.
         evening_items = choose_items(ranked, {"recent": []}, now)[:5]
         if len(evening_items) < 4:
             raise RuntimeError("Недостаточно материалов для вечернего дайджеста")
