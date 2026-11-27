@@ -481,3 +481,29 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
     if visible_text_length(message) > 3900:
         raise ValueError("Digest exceeds Telegram message limit")
     return message
+
+
+def make_evening_news_digest(items, slot_label, freedom_url, apk_url):
+    """Compact evening news roundup with source attribution and app download link."""
+    if not items:
+        return ""
+    lines = [
+        f"<b>🌙 WiFi Sonar · {slot_label}</b>",
+        f"<i>{len(items[:5])} главных материалов дня о сетях, связи и интернете</i>",
+        "",
+    ]
+    for index, item in enumerate(items[:5], 1):
+        title = clean_text(item["title"]).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        summary = clean_text(item.get("summary", "")).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        url = item["url"].replace("&", "&amp;").replace('"', "&quot;")
+        lines.append(f"{index}. <b><a href=\"{url}\">{title}</a></b>")
+        lines.append(summary)
+        lines.append(f"<i>{why_in_digest(item)}</i>")
+        lines.append("")
+    lines.append(f"<a href=\"{freedom_url}\">Фридом. Интернет друзей. ↗</a>")
+    if apk_url:
+        lines.append(f"<a href=\"{apk_url}\">⬇️ Скачать актуальный WiFi Sonar APK</a>")
+    message = "\\n".join(lines)
+    if visible_text_length(message) > 3900:
+        raise ValueError("Evening digest exceeds Telegram message limit")
+    return message
