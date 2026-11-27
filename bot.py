@@ -81,8 +81,8 @@ if not re.fullmatch(r"0x[a-fA-F0-9]{40}", DONATE_ETH_ADDRESS):
     log.warning("ETH donation address is missing or invalid; hiding ETH option")
 
 
-def button(include_channel=False, campaign="bot_menu", site_path=GUIDE_ROOT):
-    apk = latest_apk()
+def button(include_channel=False, campaign="bot_menu", site_path=GUIDE_ROOT, apk_data=None):
+    apk = apk_data if apk_data is not None else latest_apk()
     download_row = ([{"text": "⬇️ Скачать актуальный APK", "url": apk["url"]}]
                     if apk and apk.get("url") else
                     [{"text": "Скачать APK на сайте ↗", "url": tracked_site_url("/", campaign, "app_page")}])
@@ -573,7 +573,7 @@ def send_test_cycle(chat_id):
             api("sendMessage", {
                 "chat_id": chat_id, "text": body, "parse_mode": "HTML",
                 "disable_web_page_preview": "true",
-                "reply_markup": button(campaign=campaign),
+                "reply_markup": button(campaign=campaign, apk_data=apk),
             })
             results.append(label + ": OK")
         api("sendMessage", {"chat_id": chat_id, "text": "Тестовый цикл завершён.\n" + "\n".join(results)})
