@@ -503,7 +503,7 @@ def make_evening_news_digest(items, slot_label, freedom_url, apk_url):
     lines.append(f"<a href=\"{freedom_url}\">Фридом. Интернет друзей. ↗</a>")
     if apk_url:
         lines.append(f"<a href=\"{apk_url}\">⬇️ Скачать актуальный WiFi Sonar APK</a>")
-    message = "\\n".join(lines)
+    message = "\n".join(lines)
     if visible_text_length(message) > 3900:
         raise ValueError("Evening digest exceeds Telegram message limit")
     return message
