@@ -463,10 +463,10 @@ def make_digest(items, slot_label, site_url, freedom_url, app_urls):
         lines.append(f"<i>{bridge}</i> <a href=\"{freedom_url}\">Фридом ↗</a>")
         app_note = clip(app_bridge(item), 80).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         app_url = app_urls[index - 1]
-        lines.append(f"<i>{app_note}</i> <a href=\"{app_url}\">Разбор и WiFi Sonar ↗</a>")
+        lines.append(f"<i>{app_note}</i> <a href=\"{app_url}\">Сайт приложения ↗</a>")
         lines.append("")
     if site_url:
-        lines.append(f"<a href=\"{site_url}\">Практические инструкции и WiFi Sonar ↗</a>")
+        lines.append(f"<a href=\"{site_url}\">Сайт приложения ↗</a>")
     message = "\n".join(lines)
     for limit in (180, 150, 120, 90, 60):
         if visible_text_length(message) <= 3900:
