@@ -643,7 +643,9 @@ def main():
     try:
         api("setMyCommands", {"commands": json.dumps([
             {"command": "start", "description": "Начать работу с ботом"},
-            {"command": "app", "description": "Сайт и актуальный APK"},\n            {"command": "apk", "description": "Скачать актуальный APK"},\n            {"command": "testday", "description": "Тестовый прогон дневного цикла"},
+            {"command": "app", "description": "Сайт и актуальный APK"},
+            {"command": "apk", "description": "Скачать актуальный APK"},
+            {"command": "testday", "description": "Тестовый прогон дневного цикла"},
             {"command": "donate", "description": "Поддержать WiFi Sonar"},
             {"command": "recommend", "description": "Фридом по теме или региону"},
             {"command": "subscribe", "description": "Канал с подборками"},
