@@ -485,13 +485,15 @@ def latest_apk(force=False):
             and run.get("status") == "completed"
             and run.get("conclusion") == "success"
         ]
-        releases = github_json(f"https://api.github.com/repos/{APK_REPO}/releases?per_page=100")
-        if isinstance(releases, dict):
-            releases = releases.get("items", [])
-        by_commit = {release.get("target_commitish"): release
-                     for release in releases if not release.get("draft")}
         for run in good_runs:
-            release = by_commit.get(run.get("head_sha"))
+            releases = github_json(
+                f"https://api.github.com/repos/{APK_REPO}/releases?per_page=100"
+            )
+            if isinstance(releases, dict):
+                releases = releases.get("items", [])
+            release = next((item for item in releases
+                            if not item.get("draft")
+                            and item.get("target_commitish") == run.get("head_sha")), None)
             if not release:
                 continue
             asset = next((item for item in release.get("assets", [])
@@ -539,6 +541,9 @@ def build_morning_digest(now, campaign):
 
 def send_test_cycle(chat_id):
     now = datetime.now(UTC_PLUS_3)
+    # Test cycle may only run in a private chat; never emit fixtures to the public channel.
+    if str(chat_id) == str(CHANNEL_ID) or str(chat_id).startswith("-100"):
+        raise RuntimeError("Test cycle is restricted to a private administrator chat")
     campaign = f"wifi_sonar_test_{now.strftime('%Y%m%d_%H%M%S')}"
     results = []
     try:
