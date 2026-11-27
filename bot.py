@@ -114,10 +114,10 @@ def donation_text():
     if DONATE_SBER_CARD:
         methods.append("на карту Сбера в рублях")
     if not methods:
-        return ("Спасибо, что хотите поддержать развитие WiFi Sonar! ❤️\\n\\n"
+        return ("Спасибо, что хотите поддержать развитие WiFi Sonar! ❤️\n\n"
                 "Реквизиты пока настраиваются. Загляните немного позже.")
-    return ("Спасибо за интерес к поддержке WiFi Sonar! ❤️\\n\\n"
-            "Можно поддержать проект " + " или ".join(methods) + ".\\n"
+    return ("Спасибо за интерес к поддержке WiFi Sonar! ❤️\n\n"
+            "Можно поддержать проект " + " или ".join(methods) + ".\n"
             "Выберите удобный способ ниже.")
 
 
@@ -181,9 +181,9 @@ def handle_callback(callback):
         api("editMessageText", {
             "chat_id": chat_id,
             "message_id": message_id,
-            "text": (f"❤️ Поддержать WiFi Sonar · {coin}\\n\\n"
-                     f"Сеть: {network_names[coin]}\\n"
-                     f"Адрес кошелька:\\n<code>{escape(address)}</code>\\n\\n"
+            "text": (f"❤️ Поддержать WiFi Sonar · {coin}\n\n"
+                     f"Сеть: {network_names[coin]}\n"
+                     f"Адрес кошелька:\n<code>{escape(address)}</code>\n\n"
                      "Перед отправкой обязательно сверьте сеть и адрес. Перевод в другую сеть может привести к потере средств."),
             "parse_mode": "HTML",
             "reply_markup": json.dumps({"inline_keyboard": [
@@ -196,11 +196,11 @@ def handle_callback(callback):
         if not card:
             api("answerCallbackQuery", {"callback_query_id": callback["id"], "text": "Реквизиты Сбера пока не настроены."})
             return
-        text = "❤️ Поддержать WiFi Sonar · Сбербанк\\n\\n"
-        text += f"Карта: <code>{escape(card)}</code>\\n"
+        text = "❤️ Поддержать WiFi Sonar · Сбербанк\n\n"
+        text += f"Карта: <code>{escape(card)}</code>\n"
         if recipient:
-            text += f"Получатель: {escape(recipient)}\\n"
-        text += "\\nПеревод в рублях. Спасибо за поддержку!"
+            text += f"Получатель: {escape(recipient)}\n"
+        text += "\nПеревод в рублях. Спасибо за поддержку!"
         api("editMessageText", {
             "chat_id": chat_id,
             "message_id": message_id,
