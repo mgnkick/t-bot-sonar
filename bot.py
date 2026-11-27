@@ -332,7 +332,6 @@ def maybe_publish_content():
         slot_start = now.replace(hour=hour, minute=0, second=0, microsecond=0)
         if now < slot_start or now >= slot_start + timedelta(hours=3):
             continue
-
         slot_key = f"{now.date().isoformat()}:{slot_name}"
         state = load_state()
         if slot_key in state.setdefault("sent", {}):
@@ -346,42 +345,42 @@ def maybe_publish_content():
                 pass
         state["attempts"][slot_key] = now.isoformat()
         save_state(state)
-
-        items = []
         campaign = f"wifi_sonar_{slot_name}_{now.strftime('%Y%m%d')}"
         site_path = GUIDE_ROOT
+        items = []
         try:
             label = f"{slot_name}, {slot_start.strftime('%H:%M')} · UTC+3"
             if slot_name == "утро":
+                message, items = build_morning_digest(now, campaign)
+            elif slot_name == "день":
+                post = DAY_TIPS[(now.date().toordinal()) % len(DAY_TIPS)]
+                site_path = post["path"]
+                message = make_practical_post(post, label, campaign)
+            else:
+                # Keep the 18:00 practical explainer and publish a separate news roundup.
+                post = EVENING_EXPLAINERS[(now.date().toordinal() + 2) % len(EVENING_EXPLAINERS)]
+                site_path = post["path"]
+                practical = make_practical_post(post, label, campaign)
                 ranked = collect_ranked()
                 items = choose_items(ranked, state, now)
                 if len(items) < 4:
-                    log.warning("Only %d eligible articles for morning digest; will retry", len(items))
-                    return
-                items = translate_items_to_russian(items)
-                guide_urls = [tracked_site_url(guide_for_item(item), campaign, f"story_{index}") for index, item in enumerate(items, 1)]
-                message = make_digest(
-                    items,
-                    label,
-                    html_text(tracked_site_url(GUIDE_ROOT, campaign, "guide_hub")),
-                    html_text(FREEDOM_URL),
-                    [html_text(url) for url in guide_urls],
+                    raise RuntimeError(f"Only {len(items)} eligible articles for evening digest")
+                translated = translate_items_to_russian(items)
+                apk = latest_apk()
+                news = make_evening_news_digest(
+                    translated, f"вечер · {slot_start.strftime('%H:%M')} · UTC+3",
+                    html_text(FREEDOM_URL), html_text(apk.get("url", "")),
                 )
-            else:
-                posts = DAY_TIPS if slot_name == "день" else EVENING_EXPLAINERS
-                offset = 0 if slot_name == "день" else 2
-                post = posts[(now.date().toordinal() + offset) % len(posts)]
-                site_path = post["path"]
-                message = make_practical_post(post, label, campaign)
+                message = practical + "\\n\\n" + news
             api("sendMessage", {
-                "chat_id": CHANNEL_ID,
-                "text": message,
-                "parse_mode": "HTML",
+                "chat_id": CHANNEL_ID, "text": message, "parse_mode": "HTML",
                 "disable_web_page_preview": "true",
                 "reply_markup": button(campaign=campaign, site_path=site_path),
             })
             state["sent"][slot_key] = now.isoformat()
-            state.setdefault("recent", []).extend({"url": canonical_url(item["url"]), "at": now.isoformat()} for item in items)
+            state.setdefault("recent", []).extend(
+                {"url": canonical_url(item["url"]), "at": now.isoformat()} for item in items
+            )
             save_state(state)
             log.info("Published %s content%s", slot_name, f" with {len(items)} articles" if items else "")
         except (urllib.error.URLError, TimeoutError, RuntimeError, ValueError, KeyError):
